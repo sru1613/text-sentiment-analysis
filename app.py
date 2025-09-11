@@ -1,8 +1,8 @@
-from flask import Flask, request, render_template, jsonify, redirect
+from flask import Flask, request, render_template, jsonify
 from flask_cors import CORS
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from flasgger import Swagger
-from importlib.metadata import version, PackageNotFoundError
+from importlib.metadata import version
 import os
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
@@ -43,7 +43,6 @@ swagger = Swagger(
         }
     },
 )
-
 
 def analyze_text(text: str) -> dict:
     """Analyze text and return label, emoji, and raw scores.
@@ -144,7 +143,6 @@ def analyze_file():
     # add a summary length
     result['meta'] = {'chars': len(text)}
     return jsonify(result)
-
 
 @app.route('/health')
 def health():
