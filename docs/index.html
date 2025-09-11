@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sentiment Analyzer</title>
+  <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAAAASUVORK5CYII=">
+  <link rel="stylesheet" href="static/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Optional: set a public backend origin when hosting on GitHub Pages
+  <script>window.BACKEND_ORIGIN = 'https://your-backend.example.com';</script>
+  -->
+</head>
+<body>
+  <main>
+    <h1>Sentiment Analyzer</h1>
+
+    <section class="input">
+      <label for="text">Enter text to analyze</label>
+      <textarea id="text" rows="6" placeholder="Type or paste text here..."></textarea>
+      <div class="controls">
+        <button id="analyzeBtn">Analyze Text</button>
+        <input type="file" id="fileInput" accept=".txt" />
+        <button id="analyzeFileBtn">Analyze File</button>
+      </div>
+    </section>
+
+    <section class="result">
+      <h2>Result</h2>
+      <div id="summary" class="summary">No analysis yet</div>
+
+      <div class="chartWrap">
+        <canvas id="scoresChart" width="400" height="200"></canvas>
+      </div>
+    </section>
+
+    <footer>
+      <!-- footer intentionally left minimal -->
+    </footer>
+  </main>
+
+  <script src="static/main.js"></script>
+</body>
+</html>
