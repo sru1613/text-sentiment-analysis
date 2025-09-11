@@ -1,4 +1,10 @@
+<<<<<<< HEAD
 Flask>=2.3
 vaderSentiment>=3.3.2
 flask-cors>=3.0.10
 flasgger>=0.9.7.1
+=======
+Flask>=2.0
+vaderSentiment>=3.3.2
+flask-cors>=3.0.10
+>>>>>>> feea0eeba6dde745ed1ae152599dbf47e0455311
