@@ -30,6 +30,25 @@
       <canvas id="scoresChart" width="400" height="200"></canvas>
     </section>
 
+    <section class="batch">
+      <h2>CSV Batch Analysis</h2>
+      <p>Upload a CSV file that has a column named <strong>text</strong>.</p>
+      <div class="controls">
+        <input type="file" id="csvInput" accept=".csv" />
+        <button id="analyzeCsvBtn">Analyze CSV</button>
+        <button id="downloadCsvBtn" disabled>Download Results (CSV)</button>
+      </div>
+      <div id="csvSummary" class="summary" style="margin-top:12px">No CSV analyzed yet</div>
+    </section>
+
+    <section class="history">
+      <h2>Recent History</h2>
+      <div class="controls">
+        <button id="refreshHistoryBtn">Refresh</button>
+      </div>
+      <div id="historyList" class="summary" style="margin-top:12px">No history yet</div>
+    </section>
+
     <footer>
       <!-- footer intentionally left minimal -->
     </footer>

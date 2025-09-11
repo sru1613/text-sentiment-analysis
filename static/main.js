@@ -6,12 +6,22 @@ const summaryEl = document.getElementById('summary');
 const ctx = document.getElementById('scoresChart').getContext('2d');
 let chart = null;
 
+// Batch & history elements
+const csvInput = document.getElementById('csvInput');
+const analyzeCsvBtn = document.getElementById('analyzeCsvBtn');
+const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+const csvSummary = document.getElementById('csvSummary');
+const refreshHistoryBtn = document.getElementById('refreshHistoryBtn');
+const historyList = document.getElementById('historyList');
+
 // Choose backend origin: if page is served from Flask (port 5000) use same origin,
 // otherwise assume backend at http://127.0.0.1:5000
 const currentOrigin = window.location.origin;
 const backendOrigin = currentOrigin && currentOrigin.includes('5000') ? currentOrigin : 'http://127.0.0.1:5000';
 const analyzeUrl = backendOrigin + '/analyze';
 const analyzeFileUrl = backendOrigin + '/analyze_file';
+const analyzeCsvUrl = backendOrigin + '/analyze_csv';
+const historyUrl = backendOrigin + '/history?limit=10';
 
 function renderResult(data) {
   const label = data.label || 'Neutral';
@@ -80,3 +90,72 @@ analyzeFileBtn.addEventListener('click', async () => {
     summaryEl.innerText = 'Network or server error: ' + err.message;
   }
 });
+
+analyzeCsvBtn?.addEventListener('click', async () => {
+  const file = csvInput.files?.[0];
+  if (!file) { alert('Please select a .csv file first'); return; }
+  const fd = new FormData();
+  fd.append('file', file);
+  csvSummary.textContent = 'Uploading and analyzing...';
+  downloadCsvBtn.disabled = true;
+  try {
+    const resp = await fetch(analyzeCsvUrl, { method: 'POST', body: fd });
+    const contentType = resp.headers.get('content-type') || '';
+    if (!resp.ok) {
+      const msg = await resp.text();
+      csvSummary.textContent = `Error: ${resp.status} ${resp.statusText} - ${msg || 'no details'}`;
+      return;
+    }
+    if (contentType.includes('application/json')) {
+      const data = await resp.json();
+      csvSummary.textContent = `Analyzed ${data.count} rows (showing up to 50 in API response).`;
+      // Enable downloadable CSV
+      downloadCsvBtn.disabled = false;
+      downloadCsvBtn.onclick = async () => {
+        // request CSV format
+        const csvResp = await fetch(analyzeCsvUrl + '?format=csv', { method: 'POST', body: fd });
+        const blob = await csvResp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'analysis_results.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      };
+    } else if (contentType.includes('text/csv')) {
+      // direct CSV
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'analysis_results.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      csvSummary.textContent = 'CSV downloaded.';
+    } else {
+      csvSummary.textContent = 'Unexpected response.';
+    }
+  } catch (e) {
+    csvSummary.textContent = 'Network or server error: ' + e.message;
+  }
+});
+
+async function loadHistory() {
+  try {
+    const resp = await fetch(historyUrl);
+    if (!resp.ok) { historyList.textContent = 'Failed to load history'; return; }
+    const data = await resp.json();
+    if (!data.items?.length) { historyList.textContent = 'No history yet'; return; }
+    const rows = data.items
+      .map(item => `${item.created_at} — [${item.source}] ${item.label} (pos:${item.pos.toFixed(2)} neu:${item.neu.toFixed(2)} neg:${item.neg.toFixed(2)} cmp:${item.compound.toFixed(2)})`);
+    historyList.innerHTML = '<ul><li>' + rows.map(r => r.replaceAll('<','&lt;')).join('</li><li>') + '</li></ul>';
+  } catch (e) {
+    historyList.textContent = 'Network or server error: ' + e.message;
+  }
+}
+refreshHistoryBtn?.addEventListener('click', loadHistory);
+window.addEventListener('load', loadHistory);
