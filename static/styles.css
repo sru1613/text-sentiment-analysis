@@ -1,19 +1,10 @@
 :root{
-<<<<<<< HEAD
 	--bg:#2a0b12; /* warm deep maroon */
 	--card:#0b1220;
 	--muted:#98a0b3;
 	--accent1:#ff6b9f; /* pink */
 	--accent2:#ffd166; /* yellow */
 	--accent3:#ff595e; /* red */
-=======
-	--bg:#0b1220; /* deep navy */
-	--card:#111827; /* near black card background */
-	--muted:#94a3b8; /* cool muted gray */
-	--accent1:#00f5d4; /* neon aqua */
-	--accent2:#ff6b9f; /* neon pink */
-	--accent3:#f9c80e; /* bright yellow */
->>>>>>> feea0eeba6dde745ed1ae152599dbf47e0455311
 	--glass: rgba(255,255,255,0.04);
 }
 

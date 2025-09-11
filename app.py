@@ -1,11 +1,8 @@
 from flask import Flask, request, render_template, jsonify
 from flask_cors import CORS
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-<<<<<<< HEAD
 from flasgger import Swagger
 from importlib.metadata import version
-=======
->>>>>>> feea0eeba6dde745ed1ae152599dbf47e0455311
 import os
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
@@ -14,7 +11,6 @@ analyzer = SentimentIntensityAnalyzer()
 CORS(app)
 
 
-<<<<<<< HEAD
 def _pkg_version(name: str) -> str:
     try:
         return version(name)
@@ -48,24 +44,23 @@ swagger = Swagger(
     },
 )
 
-=======
->>>>>>> feea0eeba6dde745ed1ae152599dbf47e0455311
+
 def analyze_text(text: str) -> dict:
     """Analyze text and return label, emoji, and raw scores.
 
     Returns a dict with keys: label, emoji, scores (pos/neu/neg/compound)
     """
     if not text:
-        return {"label": "Neutral", "emoji": "😐", "scores": {"pos": 0.0, "neu": 0.0, "neg": 0.0, "compound": 0.0}}
+        return {"label": "Neutral", "emoji": "\U0001F610", "scores": {"pos": 0.0, "neu": 0.0, "neg": 0.0, "compound": 0.0}}
 
     scores = analyzer.polarity_scores(text)
     compound = scores.get("compound", 0.0)
     if compound >= 0.05:
-        label, emoji = "Positive", "😊"
+        label, emoji = "Positive", "\U0001F60A"
     elif compound <= -0.05:
-        label, emoji = "Negative", "😞"
+        label, emoji = "Negative", "\U0001F61E"
     else:
-        label, emoji = "Neutral", "😐"
+        label, emoji = "Neutral", "\U0001F610"
 
     return {"label": label, "emoji": emoji, "scores": scores}
 
@@ -77,55 +72,47 @@ def index():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-<<<<<<< HEAD
-        """
-        Analyze text sentiment
-        ---
-        consumes:
-            - application/json
-        parameters:
-            - in: body
-                name: body
-                required: true
-                schema:
-                    type: object
-                    properties:
-                        text:
-                            type: string
-                            example: I love this product!
-        responses:
-            200:
-                description: Analysis result
-                schema:
-                    type: object
-                    properties:
-                        label:
-                            type: string
-                        emoji:
-                            type: string
-                        scores:
-                            type: object
-                            properties:
-                                pos: { type: number }
-                                neu: { type: number }
-                                neg: { type: number }
-                                compound: { type: number }
-        """
-        data = request.get_json(force=True, silent=True) or {}
-        text = data.get('text', '')
-        result = analyze_text(text)
-        return jsonify(result)
-=======
+    """
+    Analyze text sentiment
+    ---
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            text:
+              type: string
+              example: I love this product!
+    responses:
+      200:
+        description: Analysis result
+        schema:
+          type: object
+          properties:
+            label:
+              type: string
+            emoji:
+              type: string
+            scores:
+              type: object
+              properties:
+                pos: { type: number }
+                neu: { type: number }
+                neg: { type: number }
+                compound: { type: number }
+    """
     data = request.get_json(force=True, silent=True) or {}
     text = data.get('text', '')
     result = analyze_text(text)
     return jsonify(result)
->>>>>>> feea0eeba6dde745ed1ae152599dbf47e0455311
 
 
 @app.route('/analyze_file', methods=['POST'])
 def analyze_file():
-<<<<<<< HEAD
     """
     Analyze sentiment of an uploaded text file
     ---
@@ -141,8 +128,6 @@ def analyze_file():
       200:
         description: Analysis result
     """
-=======
->>>>>>> feea0eeba6dde745ed1ae152599dbf47e0455311
     if 'file' not in request.files:
         return jsonify({'error': 'no file uploaded'}), 400
     f = request.files['file']
@@ -160,7 +145,7 @@ def analyze_file():
     result['meta'] = {'chars': len(text)}
     return jsonify(result)
 
-<<<<<<< HEAD
+
 @app.route('/health')
 def health():
     """Simple healthcheck endpoint."""
@@ -176,8 +161,6 @@ def health():
         }
     )
 
-=======
->>>>>>> feea0eeba6dde745ed1ae152599dbf47e0455311
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
