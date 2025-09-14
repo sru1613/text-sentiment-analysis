@@ -285,6 +285,8 @@ window.addEventListener('load', setupSectionToggles);
   const sendBtn = document.getElementById('chatSendBtn');
   const input = document.getElementById('chatInput');
   const list = document.getElementById('chatMessages');
+  const toneSelect = document.getElementById('toneSelect');
+  const chipsWrap = document.getElementById('quickReplies');
 
   // Ensure the expanded section grows to fit newly appended chat content
   function adjustSectionHeightFor(el){
@@ -324,14 +326,44 @@ window.addEventListener('load', setupSectionToggles);
     return wrap;
   }
 
-  window.__chatAppend = function(type, text, scores){
+  function formatTime(d){
+    try{
+      const dt = d instanceof Date ? d : new Date();
+      return dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    } catch { return ''; }
+  }
+
+  window.__chatAppend = function(type, text, scores, opts){
     const item = document.createElement('div');
     item.className = 'chat-msg ' + (type === 'You' ? 'user' : 'bot');
     const strong = (type === 'You') ? 'You' : 'Bot';
-    item.innerHTML = `<div><strong>${strong}:</strong> ${text.replaceAll('<','&lt;')}</div>`;
+    const safe = (text || '').replaceAll('<','&lt;');
+    const ts = opts?.timestamp instanceof Date ? opts.timestamp : new Date();
+    const badge = (opts?.tone && type !== 'You') ? `<span class="badge ${opts.tone}">${opts.tone}</span>` : '';
+    item.innerHTML = `<div><strong>${strong}:</strong> ${safe} ${badge}</div>`;
     if (scores) item.appendChild(makeBar(scores));
+    const t = document.createElement('div');
+    t.className = 'time';
+    t.textContent = formatTime(ts);
+    item.appendChild(t);
     list.appendChild(item);
     list.scrollTop = list.scrollHeight;
+    adjustSectionHeightFor(list);
+  }
+
+  function showTyping(){
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-msg bot typing';
+    bubble.setAttribute('data-typing','1');
+    bubble.innerHTML = `<div><strong>Bot:</strong> <span class="typing">typing<span class=\"dots\"><span class=\"dot\"></span><span class=\"dot\"></span><span class=\"dot\"></span></span></span></div>`;
+    list.appendChild(bubble);
+    list.scrollTop = list.scrollHeight;
+    adjustSectionHeightFor(list);
+    return bubble;
+  }
+
+  function clearTyping(el){
+    if (el && el.parentNode) el.parentNode.removeChild(el);
     adjustSectionHeightFor(list);
   }
 
@@ -349,7 +381,7 @@ window.addEventListener('load', setupSectionToggles);
       }
     } catch {}
 
-    if (window.__chatAppend) window.__chatAppend('You', message, userScores); else {
+    if (window.__chatAppend) window.__chatAppend('You', message, userScores, { timestamp: new Date() }); else {
       const div = document.createElement('div');
       div.style.marginTop = '8px';
       div.innerHTML = `<strong>You:</strong> ${message.replaceAll('<','&lt;')}`;
@@ -359,22 +391,71 @@ window.addEventListener('load', setupSectionToggles);
     input.value = '';
 
     // Send to chatbot
+    const typingEl = showTyping();
     try {
-      const resp = await fetch(chatUrl, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message})});
+  const selTone = (toneSelect?.value || 'listening');
+  const resp = await fetch(chatUrl, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message, tone: selTone})});
       if (!resp.ok){
-        (window.__chatAppend ? window.__chatAppend('Bot', `Error ${resp.status}`) : (list.textContent += `\nBot: Error ${resp.status}`));
+        clearTyping(typingEl);
+        (window.__chatAppend ? window.__chatAppend('Bot', `Error ${resp.status}`, null, { timestamp: new Date() }) : (list.textContent += `\nBot: Error ${resp.status}`));
         return;
       }
       const data = await resp.json();
       const emoji = (data.sentiment && data.sentiment.emoji) ? ` ${data.sentiment.emoji}` : '';
-      (window.__chatAppend ? window.__chatAppend('Bot', `${data.reply}${emoji}`, data.sentiment?.scores) : (list.textContent += `\nBot: ${data.reply}${emoji}`));
+      // Adaptive typing delay based on length and tone
+      const base = Math.max(300, Math.round((data.reply || '').length / 30 * 1000));
+      const respTone = (data.tone || (toneSelect?.value || 'listening'));
+      const toneFactor = respTone === 'coaching' ? 0.8 : 1.15; // coaching faster, listening slower
+      const delayMs = Math.min(2500, Math.max(250, Math.round(base * toneFactor)));
+      setTimeout(()=>{
+        clearTyping(typingEl);
+        (window.__chatAppend ? window.__chatAppend('Bot', `${data.reply}${emoji}`, data.sentiment?.scores, { timestamp: new Date(), tone: respTone }) : (list.textContent += `\nBot: ${data.reply}${emoji}`));
+        if (!window.__chatAppend) adjustSectionHeightFor(list);
+      }, delayMs);
       if (!window.__chatAppend) adjustSectionHeightFor(list);
     } catch(e){
-      (window.__chatAppend ? window.__chatAppend('Bot', 'Network error') : (list.textContent += `\nBot: Network error`));
+      clearTyping(typingEl);
+      (window.__chatAppend ? window.__chatAppend('Bot', 'Network error', null, { timestamp: new Date() }) : (list.textContent += `\nBot: Network error`));
       if (!window.__chatAppend) adjustSectionHeightFor(list);
     }
   }
 
   sendBtn?.addEventListener('click', send);
   input?.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') send(); });
+
+  // Quick reply chips
+  const baseChips = [
+    { id:'breathing', text: 'Do breathing', message: 'I feel stressed. Can we do a 4-7-8 breathing exercise?' },
+    { id:'tinyplan', text: 'Make a tiny plan', message: "I'm overwhelmed. Help me pick a tiny first step." },
+    { id:'sleep', text: 'Improve sleep', message: "I can't sleep. Any tips to wind down?" },
+    { id:'focus', text: 'Focus for 25m', message: "I can't focus. Can you guide me with a 25/5 cycle?" },
+    { id:'history', text: 'Show history', message: "Show my recent analysis history" },
+  ];
+
+  function renderChips(suggestions){
+    if (!chipsWrap) return;
+    chipsWrap.innerHTML = '';
+    const add = (id) => {
+      const found = baseChips.find(c => c.id === id);
+      if (!found) return;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = found.text;
+      b.addEventListener('click', () => { input.value = found.message; send(); });
+      chipsWrap.appendChild(b);
+    };
+    // Map suggestion keywords to chip ids
+    const map = {
+      'Do breathing':'breathing', 'Urgent vs important':'tinyplan', 'Make a mini plan':'tinyplan', 'Pick first topic':'tinyplan',
+      'Body scan':'sleep', 'Wind-down tips':'sleep', 'Start 10-minute timer':'focus', '25/5 Pomodoro':'focus',
+      'Show history':'history', 'Analyze my text':'tinyplan'
+    };
+    const ids = new Set();
+    (suggestions || []).forEach(s => { const id = map[s] || null; if (id) ids.add(id); });
+    if (ids.size === 0) { ids.add('breathing'); ids.add('tinyplan'); }
+    ids.forEach(add);
+  }
+
+  // Initial chips
+  renderChips(['Do breathing','Make a mini plan']);
 })();

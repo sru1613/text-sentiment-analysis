@@ -115,6 +115,14 @@
       </button>
       <div class="section-content">
         <section class="chat">
+          <div class="chat-top-controls controls" style="flex-wrap:wrap; gap:8px">
+            <label for="toneSelect" style="margin:0; font-weight:600">Tone:</label>
+            <select id="toneSelect" style="padding:8px 10px; border-radius:8px; background:rgba(0,0,0,0.1); color:inherit; border:1px solid rgba(255,255,255,0.15)">
+              <option value="listening">Listening (empathetic)</option>
+              <option value="coaching">Coaching (action-focused)</option>
+            </select>
+            <div id="quickReplies" class="chips" style="display:flex; flex-wrap:wrap; gap:8px; margin-left:auto"></div>
+          </div>
           <div id="chatMessages" class="summary" style="min-height:100px">Say hello to start chatting…</div>
           <div class="controls">
             <input id="chatInput" type="text" placeholder="Type your message…" style="flex:1; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.1); color:inherit" />
