@@ -229,6 +229,67 @@ def analyze_file():
     return jsonify(result)
 
 
+@app.route('/chat', methods=['POST'])
+@limiter.limit("30/minute")
+def chat():
+        """
+        Simple chatbot that mirrors sentiment and replies accordingly.
+        ---
+        consumes:
+            - application/json
+        parameters:
+            - in: body
+                name: body
+                required: true
+                schema:
+                    type: object
+                    properties:
+                        message:
+                            type: string
+                            example: I am excited today!
+        responses:
+            200:
+                description: Chat reply with sentiment analysis
+                schema:
+                    type: object
+                    properties:
+                        reply:
+                            type: string
+                        sentiment:
+                            type: object
+        """
+        data = request.get_json(force=True, silent=True) or {}
+        message = (data.get('message') or '').strip()
+        if not message:
+                return jsonify({"reply": "Please share something so I can respond.", "sentiment": analyze_text("")})
+
+        sentiment = analyze_text(message)
+        label = sentiment.get('label')
+
+        m = message.lower()
+        # Simple intent handling
+        is_greeting = any(m.startswith(g) for g in ["hi", "hello", "hey"]) or (
+            any(phrase in m for phrase in ["good morning", "good afternoon", "good evening", "namaste", "hola"])
+        )
+        asks_help = any(k in m for k in ["help", "what can you do", "features", "how to use", "instructions"])
+
+        if is_greeting:
+            reply = "Hello! 👋 How are you feeling today? You can tell me anything or ask me to analyze text or a file."
+        elif asks_help:
+            reply = (
+                "I can analyze the sentiment of your text (positive/neutral/negative), "
+                "process .txt/.csv files, show charts, and keep recent history. What would you like to try?"
+            )
+        elif label == 'Positive':
+            reply = "That's great to hear! Want to share a bit more?"
+        elif label == 'Negative':
+            reply = "I'm sorry you're feeling this way. I'm here to listen. What happened?"
+        else:
+            reply = "I'm here for you. Tell me more or ask me to analyze something specific."
+
+        return jsonify({"reply": reply, "sentiment": sentiment})
+
+
 @app.route('/analyze_csv', methods=['POST'])
 @limiter.limit("5/minute")
 def analyze_csv():
