@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, jsonify, make_response
+from flask import Flask, request, render_template, jsonify, make_response, redirect, url_for, session, g, flash, send_file
 from flask_cors import CORS
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from flasgger import Swagger
@@ -11,8 +11,23 @@ import sqlite3
 from datetime import datetime
 import io
 import csv
+from langdetect import detect as lang_detect
+import base64
+
+try:
+    import yake
+except Exception:
+    yake = None
+
+try:
+    from wordcloud import WordCloud
+except Exception:
+    WordCloud = None
+
+# reportlab is imported lazily inside the /export_pdf endpoint
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
 analyzer = SentimentIntensityAnalyzer()
 # Allow Cross-Origin requests during development (e.g., page served from port 5500)
 CORS(app)
@@ -58,6 +73,11 @@ swagger = Swagger(
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
 DB_PATH = os.path.join(DATA_DIR, 'app.db')
 
+def _column_exists(conn, table: str, col: str) -> bool:
+    cur = conn.execute(f"PRAGMA table_info({table})")
+    return any(r[1] == col for r in cur.fetchall())
+
+
 def init_db():
     os.makedirs(DATA_DIR, exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
@@ -73,21 +93,50 @@ def init_db():
                 neg REAL,
                 compound REAL,
                 filename TEXT,
+                created_at TEXT NOT NULL,
+                user_id INTEGER
+            )
+            """
+        )
+        # Create users table
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
             """
         )
+        # Settings per user
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_settings (
+                user_id INTEGER PRIMARY KEY,
+                default_tone TEXT,
+                default_model TEXT,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+            """
+        )
+        # Backfill user_id column if db existed without it
+        if not _column_exists(conn, 'analyses', 'user_id'):
+            try:
+                conn.execute("ALTER TABLE analyses ADD COLUMN user_id INTEGER")
+            except Exception:
+                pass
         conn.commit()
 
 
-def insert_analysis(source: str, text: str, result: dict, filename: Optional[str] = None):
+def insert_analysis(source: str, text: str, result: dict, filename: Optional[str] = None, user_id: Optional[int] = None):
     snippet = (text or "")[:200]
     scores = result.get("scores", {})
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             """
-            INSERT INTO analyses (source, text_snippet, label, pos, neu, neg, compound, filename, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO analyses (source, text_snippet, label, pos, neu, neg, compound, filename, created_at, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 source,
@@ -99,32 +148,94 @@ def insert_analysis(source: str, text: str, result: dict, filename: Optional[str
                 scores.get("compound"),
                 filename,
                 datetime.utcnow().isoformat(timespec="seconds") + "Z",
+                user_id,
             ),
         )
         conn.commit()
 
 
-def get_history(limit: int = 10):
+def get_history(limit: int = 10, user_id: Optional[int] = None):
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
-        cur = conn.execute(
-            "SELECT id, source, text_snippet, label, pos, neu, neg, compound, filename, created_at FROM analyses ORDER BY id DESC LIMIT ?",
-            (limit,),
-        )
+        if user_id:
+            cur = conn.execute(
+                "SELECT id, source, text_snippet, label, pos, neu, neg, compound, filename, created_at FROM analyses WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+                (user_id, limit),
+            )
+        else:
+            cur = conn.execute(
+                "SELECT id, source, text_snippet, label, pos, neu, neg, compound, filename, created_at FROM analyses ORDER BY id DESC LIMIT ?",
+                (limit,),
+            )
         return [dict(row) for row in cur.fetchall()]
+
+
+# ---------- Auth helpers ----------
+from werkzeug.security import generate_password_hash, check_password_hash
+
+
+def current_user_id() -> Optional[int]:
+    return session.get('user_id')
+
+
+@app.before_request
+def load_current_user():
+    g.user_id = session.get('user_id')
 
 
 # ---------- Core analysis ----------
 
-def analyze_text(text: str) -> dict:
+def _extract_keywords(text: str, max_k: int = 6):
+    if not text or not yake:
+        return []
+    kw = yake.KeywordExtractor(lan='en', top=max_k)
+    try:
+        items = kw.extract_keywords(text)
+        return [w for w, score in items]
+    except Exception:
+        return []
+
+
+def _wordcloud_b64(text: str) -> Optional[str]:
+    if not text or not WordCloud:
+        return None
+    try:
+        wc = WordCloud(width=480, height=280, background_color='white', mode='RGBA')
+        img = wc.generate(text).to_image()
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        return base64.b64encode(buf.getvalue()).decode('utf-8')
+    except Exception:
+        return None
+
+
+def analyze_text(text: str, model: str = 'vader') -> dict:
     """Analyze text and return label, emoji, and raw scores.
 
     Returns a dict with keys: label, emoji, scores (pos/neu/neg/compound)
     """
     if not text:
         return {"label": "Neutral", "emoji": "\U0001F610", "scores": {"pos": 0.0, "neu": 0.0, "neg": 0.0, "compound": 0.0}}
+    # Language detection (best effort)
+    try:
+        lang = lang_detect(text)
+    except Exception:
+        lang = 'en'
 
-    scores = analyzer.polarity_scores(text)
+    if model == 'rule':
+        # Simple demo rule-based: keywords tilt sentiment
+        low = text.lower()
+        pos_words = sum(w in low for w in ['great','good','love','excellent','happy','awesome'])
+        neg_words = sum(w in low for w in ['bad','sad','angry','terrible','hate','awful'])
+        compound = max(-1.0, min(1.0, (pos_words - neg_words) * 0.2))
+        scores = {
+            'pos': max(0.0, compound),
+            'neu': max(0.0, 1.0 - abs(compound)),
+            'neg': max(0.0, -compound),
+            'compound': compound
+        }
+    else:
+        scores = analyzer.polarity_scores(text)
     compound = scores.get("compound", 0.0)
     if compound >= 0.05:
         label, emoji = "Positive", "\U0001F60A"
@@ -133,13 +244,80 @@ def analyze_text(text: str) -> dict:
     else:
         label, emoji = "Neutral", "\U0001F610"
 
-    return {"label": label, "emoji": emoji, "scores": scores}
+    result = {"label": label, "emoji": emoji, "scores": scores, "lang": lang}
+    # Enrichments
+    result["keywords"] = _extract_keywords(text)
+    wc = _wordcloud_b64(text)
+    if wc:
+        result["wordcloud_png_b64"] = wc
+    return result
+
+
+def _resolve_model(requested: Optional[str]) -> str:
+    m = (requested or '').strip().lower()
+    if m in ('vader', 'rule'):
+        return m
+    # if user has a default
+    uid = g.get('user_id') or None
+    if uid:
+        try:
+            with sqlite3.connect(DB_PATH) as conn:
+                cur = conn.execute("SELECT default_model FROM user_settings WHERE user_id=?", (uid,))
+                row = cur.fetchone()
+                if row and row[0]:
+                    dm = (row[0] or '').strip().lower()
+                    if dm in ('vader','rule'):
+                        return dm
+        except Exception:
+            pass
+    return 'vader'
 
 
 @app.route('/')
 @limiter.exempt
 def index():
-    return render_template('index.html')
+    return render_template('home.html')
+
+
+# ---------- Pages ----------
+
+@app.route('/ui/analyze', methods=['GET'])
+@limiter.exempt
+def analyze_page():
+    return render_template('analyze.html')
+
+
+@app.route('/ui/batch', methods=['GET'])
+@limiter.exempt
+def batch_page():
+    return render_template('batch.html')
+
+
+@app.route('/ui/history', methods=['GET'])
+@limiter.exempt
+def history_page():
+    if not current_user_id():
+        return redirect(url_for('login'))
+    return render_template('history.html')
+
+
+@app.route('/ui/chat', methods=['GET'])
+@limiter.exempt
+def chat_page():
+    return render_template('chat.html')
+
+
+@app.route('/ui/settings', methods=['GET'])
+@limiter.exempt
+def settings_page():
+    if not current_user_id():
+        return redirect(url_for('login'))
+    # Load current settings
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.execute("SELECT default_tone, default_model FROM user_settings WHERE user_id=?", (current_user_id(),))
+        row = cur.fetchone()
+    return render_template('settings.html', settings=dict(row) if row else {})
 
 
 @app.route('/analyze', methods=['POST'])
@@ -180,9 +358,10 @@ def analyze():
     """
     data = request.get_json(force=True, silent=True) or {}
     text = data.get('text', '')
-    result = analyze_text(text)
+    model = _resolve_model(data.get('model'))
+    result = analyze_text(text, model=model)
     try:
-        insert_analysis("text", text, result)
+        insert_analysis("text", text, result, user_id=current_user_id())
     except Exception:
         # Avoid breaking response due to DB issues
         pass
@@ -219,14 +398,98 @@ def analyze_file():
     except Exception:
         return jsonify({'error': 'could not read file'}), 400
 
-    result = analyze_text(text)
+    model = _resolve_model(request.args.get('model'))
+    result = analyze_text(text, model=model)
     # add a summary length
     result['meta'] = {'chars': len(text)}
     try:
-        insert_analysis("file", text, result, filename=getattr(f, 'filename', None))
+        insert_analysis("file", text, result, filename=getattr(f, 'filename', None), user_id=current_user_id())
     except Exception:
         pass
     return jsonify(result)
+
+
+@app.route('/export_pdf', methods=['POST'])
+@limiter.limit("10/minute")
+def export_pdf():
+    """Generate a simple PDF report for a given text analysis."""
+    # Import reportlab locally
+    try:
+        from reportlab.pdfgen import canvas as _canvas
+        from reportlab.lib.pagesizes import letter as _letter
+        from reportlab.lib.units import inch as _inch
+        from reportlab.lib.utils import ImageReader as _ImageReader
+    except Exception:
+        return jsonify({'error': 'PDF utilities unavailable'}), 500
+    data = request.get_json(force=True, silent=True) or {}
+    text = (data.get('text') or '').strip()
+    model = (data.get('model') or 'vader').lower()
+    if not text:
+        return jsonify({'error': 'text required'}), 400
+    res = analyze_text(text, model=model)
+
+    buf = io.BytesIO()
+    c = _canvas.Canvas(buf, pagesize=_letter)
+    width, height = _letter
+
+    # Title
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(72, height - 72, "Sentiment Analysis Report")
+    c.setFont("Helvetica", 10)
+    c.drawString(72, height - 90, f"Generated: {datetime.utcnow().isoformat(timespec='seconds')}Z")
+    c.drawString(72, height - 105, f"Model: {model.upper()}")
+
+    # Text snippet
+    snippet = (text[:300] + ('…' if len(text) > 300 else ''))
+    c.setFont("Helvetica", 11)
+    c.drawString(72, height - 130, "Text snippet:")
+    text_obj = c.beginText(72, height - 145)
+    text_obj.setFont("Helvetica", 10)
+    for line in snippet.splitlines() or [snippet]:
+        text_obj.textLine(line)
+    c.drawText(text_obj)
+
+    # Scores
+    y = height - 230
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(72, y, f"Result: {res.get('label')} {res.get('emoji','')}")
+    y -= 16
+    sc = res.get('scores', {})
+    c.setFont("Helvetica", 11)
+    c.drawString(72, y, f"Positive: {sc.get('pos',0):.3f}  Neutral: {sc.get('neu',0):.3f}  Negative: {sc.get('neg',0):.3f}  Compound: {sc.get('compound',0):.3f}")
+
+    # Keywords
+    y -= 24
+    kws = res.get('keywords') or []
+    if kws:
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(72, y, "Top Keywords:")
+        y -= 14
+        c.setFont("Helvetica", 11)
+        for k in kws[:10]:
+            c.drawString(90, y, f"• {k}")
+            y -= 14
+
+    # Wordcloud image if available
+    wc_b64 = res.get('wordcloud_png_b64')
+    if wc_b64:
+        try:
+            img_bytes = base64.b64decode(wc_b64)
+            img = _ImageReader(io.BytesIO(img_bytes))
+            img_w, img_h = img.getSize()
+            max_w = width - 2*_inch
+            scale = min(1.0, max_w / img_w)
+            draw_w = img_w * scale
+            draw_h = img_h * scale
+            y_img = max(72, y - draw_h - 10)
+            c.drawImage(img, 72, y_img, width=draw_w, height=draw_h, mask='auto')
+        except Exception:
+            pass
+
+    c.showPage()
+    c.save()
+    buf.seek(0)
+    return send_file(buf, mimetype='application/pdf', as_attachment=True, download_name='sentiment_report.pdf')
 
 
 @app.route('/chat', methods=['POST'])
@@ -514,9 +777,10 @@ def analyze_csv():
         return jsonify({'error': "CSV must have a 'text' column"}), 400
 
     rows = []
+    model = _resolve_model(request.args.get('model'))
     for row in reader:
         text = row.get('text', '') or ''
-        res = analyze_text(text)
+        res = analyze_text(text, model=model)
         out = {
             **row,
             'label': res['label'],
@@ -527,7 +791,7 @@ def analyze_csv():
         }
         rows.append(out)
         try:
-            insert_analysis("csv", text, res, filename=getattr(f, 'filename', None))
+            insert_analysis("csv", text, res, filename=getattr(f, 'filename', None), user_id=current_user_id())
         except Exception:
             pass
 
@@ -562,10 +826,34 @@ def history():
         limit = 10
     limit = max(1, min(limit, 100))
     try:
-        items = get_history(limit=limit)
+        items = get_history(limit=limit, user_id=current_user_id())
     except Exception:
         items = []
     return jsonify({'items': items, 'limit': limit})
+
+
+@app.route('/settings', methods=['GET', 'POST'])
+def settings_api():
+    if not current_user_id():
+        return jsonify({'error': 'auth required'}), 401
+    uid = current_user_id()
+    if request.method == 'GET':
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cur = conn.execute("SELECT default_tone, default_model FROM user_settings WHERE user_id=?", (uid,))
+            row = cur.fetchone()
+        return jsonify({'settings': dict(row) if row else {}})
+    data = request.form or request.get_json(silent=True) or {}
+    tone = (data.get('default_tone') or '').strip() or None
+    model = (data.get('default_model') or '').strip() or None
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.execute("SELECT 1 FROM user_settings WHERE user_id=?", (uid,)).fetchone()
+        if cur:
+            conn.execute("UPDATE user_settings SET default_tone=?, default_model=? WHERE user_id=?", (tone, model, uid))
+        else:
+            conn.execute("INSERT INTO user_settings (user_id, default_tone, default_model) VALUES (?, ?, ?)", (uid, tone, model))
+        conn.commit()
+    return jsonify({'ok': True})
 
 
 @app.route('/health')
@@ -587,6 +875,61 @@ def health():
 
 # Initialize DB on startup
 init_db()
+
+
+# ---------- Auth routes ----------
+
+@app.route('/register', methods=['GET', 'POST'])
+@limiter.limit("10/hour")
+def register():
+    if request.method == 'GET':
+        return render_template('register.html')
+    data = request.form or request.get_json(silent=True) or {}
+    email = (data.get('email') or '').strip().lower()
+    password = (data.get('password') or '')
+    if not email or not password:
+        flash('Email and password required', 'error')
+        return render_template('register.html'), 400
+    pw_hash = generate_password_hash(password)
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
+                (email, pw_hash, datetime.utcnow().isoformat(timespec='seconds') + 'Z')
+            )
+            conn.commit()
+        flash('Registration successful. Please log in.', 'success')
+        return redirect(url_for('login'))
+    except sqlite3.IntegrityError:
+        flash('Email already registered', 'error')
+        return render_template('register.html'), 400
+
+
+@app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("30/hour")
+def login():
+    if request.method == 'GET':
+        return render_template('login.html')
+    data = request.form or request.get_json(silent=True) or {}
+    email = (data.get('email') or '').strip().lower()
+    password = (data.get('password') or '')
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.execute("SELECT id, email, password_hash FROM users WHERE email = ?", (email,))
+        row = cur.fetchone()
+    if not row or not check_password_hash(row['password_hash'], password):
+        flash('Invalid email or password', 'error')
+        return render_template('login.html'), 401
+    session['user_id'] = row['id']
+    flash('Logged in successfully', 'success')
+    return redirect(url_for('analyze_page'))
+
+
+@app.route('/logout')
+def logout():
+    session.pop('user_id', None)
+    flash('Logged out', 'success')
+    return redirect(url_for('login'))
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

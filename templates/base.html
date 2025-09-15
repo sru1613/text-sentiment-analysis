@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Sentiment App{% endblock %}</title>
+  <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAAAASUVORK5CYII=">
+  <link rel="stylesheet" href="/static/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  {% block head %}{% endblock %}
+  <style>
+  .nav{display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:12px}
+  .nav a{ color:inherit; text-decoration:none; border:1px solid var(--border); padding:8px 12px; border-radius:8px }
+    .nav a:hover{ background: rgba(255,255,255,0.06) }
+  .nav a.active{ background: rgba(255,255,255,0.12) }
+    .float-chat{ position: fixed; right: 18px; bottom: 18px; z-index: 9999 }
+    .float-chat button{ width:56px; height:56px; border-radius:999px; display:flex; align-items:center; justify-content:center }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="nav">
+      <div>
+        <a href="{{ url_for('index') }}" class="{% if request.path=='/' %}active{% endif %}">Home</a>
+        <a href="{{ url_for('analyze_page') }}" class="{% if request.path.startswith('/ui/analyze') %}active{% endif %}">Analyze</a>
+        <a href="{{ url_for('batch_page') }}" class="{% if request.path.startswith('/ui/batch') %}active{% endif %}">Batch</a>
+        <a href="{{ url_for('history_page') }}" class="{% if request.path.startswith('/ui/history') %}active{% endif %}">History</a>
+  <a href="{{ url_for('chat_page') }}" class="{% if request.path.startswith('/ui/chat') %}active{% endif %}">Chat</a>
+  <a href="{{ url_for('settings_page') }}" class="{% if request.path.startswith('/ui/settings') %}active{% endif %}">Settings</a>
+      </div>
+      <div>
+        {% if g.user_id %}
+          <a href="{{ url_for('logout') }}" class="{% if request.path.startswith('/logout') %}active{% endif %}">Logout</a>
+        {% else %}
+          <a href="{{ url_for('login') }}" class="{% if request.path.startswith('/login') %}active{% endif %}">Login</a>
+          <a href="{{ url_for('register') }}" class="{% if request.path.startswith('/register') %}active{% endif %}">Register</a>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if self.breadcrumbs %}
+      <div class="summary" style="margin-bottom:12px">
+        {% block breadcrumbs %}{% endblock %}
+      </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+
+    <footer></footer>
+  </main>
+
+  <!-- Floating chat icon present on all pages -->
+  <div class="float-chat">
+    <a title="Open Chat" href="{{ url_for('chat_page') }}">
+      <button>💬</button>
+    </a>
+  </div>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

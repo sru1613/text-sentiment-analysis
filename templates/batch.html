@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Batch - Sentiment App{% endblock %}
+{% block breadcrumbs %}
+  📦 Batch
+{% endblock %}
+{% block content %}
+  <h1>CSV Batch Analysis</h1>
+  <div class="section theme-teal" aria-expanded="true" data-key="sec-csv">
+    <button class="section-header" type="button"><span class="icon" aria-hidden></span><h2>CSV Batch Analysis</h2><span class="chevron" aria-hidden>▾</span></button>
+    <div class="section-content">
+      <section class="batch">
+        <p>Upload a CSV file that has a column named <strong>text</strong>.</p>
+        <div class="controls">
+          <input type="file" id="csvInput" accept=".csv" />
+          <button id="analyzeCsvBtn">Analyze CSV</button>
+          <button id="downloadCsvBtn" disabled>Download Results (CSV)</button>
+        </div>
+        <div id="csvSummary" class="summary" style="margin-top:12px">No CSV analyzed yet</div>
+      </section>
+    </div>
+  </div>
+{% endblock %}
+{% block scripts %}
+  <script src="/static/main.js"></script>
+{% endblock %}

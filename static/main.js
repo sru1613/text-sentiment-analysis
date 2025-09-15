@@ -5,6 +5,11 @@ const fileInput = document.getElementById('fileInput');
 const summaryEl = document.getElementById('summary');
 const ctx = document.getElementById('scoresChart').getContext('2d');
 let chart = null;
+const modelSelect = document.getElementById('modelSelect');
+const extrasEl = document.getElementById('extras');
+const wordcloudWrap = document.getElementById('wordcloudWrap');
+const wordcloudImg = document.getElementById('wordcloudImg');
+const exportPdfBtn = document.getElementById('exportPdfBtn');
 
 // Batch & history elements
 const csvInput = document.getElementById('csvInput');
@@ -21,6 +26,7 @@ const backendOrigin = currentOrigin && currentOrigin.includes('5000') ? currentO
 const analyzeUrl = backendOrigin + '/analyze';
 const analyzeFileUrl = backendOrigin + '/analyze_file';
 const analyzeCsvUrl = backendOrigin + '/analyze_csv';
+const exportPdfUrl = backendOrigin + '/export_pdf';
 const historyUrl = backendOrigin + '/history?limit=10';
 
 function renderResult(data) {
@@ -46,12 +52,27 @@ function renderResult(data) {
       scales: { y: { beginAtZero: true, max: 1 } }
     }
   });
+
+  if (extrasEl) {
+    const lang = data.lang ? `Lang: ${data.lang}` : '';
+    const kws = Array.isArray(data.keywords) && data.keywords.length ? `Keywords: ${data.keywords.slice(0,8).join(', ')}` : '';
+    extrasEl.innerText = [lang, kws].filter(Boolean).join('  |  ');
+  }
+  if (wordcloudWrap && wordcloudImg) {
+    if (data.wordcloud_png_b64) {
+      wordcloudImg.src = 'data:image/png;base64,' + data.wordcloud_png_b64;
+      wordcloudWrap.style.display = '';
+    } else {
+      wordcloudWrap.style.display = 'none';
+    }
+  }
 }
 
-analyzeBtn.addEventListener('click', async () => {
+analyzeBtn?.addEventListener('click', async () => {
   const text = textEl.value.trim();
+  const model = (modelSelect?.value || 'vader');
   try {
-    const resp = await fetch(analyzeUrl, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text})});
+    const resp = await fetch(analyzeUrl, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text, model})});
     if (!resp.ok) {
       const txt = await resp.text();
       summaryEl.innerText = `Error: ${resp.status} ${resp.statusText} - ${txt || 'no details'}`;
@@ -67,7 +88,7 @@ analyzeBtn.addEventListener('click', async () => {
   }
 });
 
-analyzeFileBtn.addEventListener('click', async () => {
+analyzeFileBtn?.addEventListener('click', async () => {
   const file = fileInput.files[0];
   if (!file) {
     alert('Please select a .txt file first');
@@ -75,8 +96,9 @@ analyzeFileBtn.addEventListener('click', async () => {
   }
   const fd = new FormData();
   fd.append('file', file);
+  const model = (modelSelect?.value || 'vader');
   try {
-    const resp = await fetch(analyzeFileUrl, {method:'POST', body: fd});
+    const resp = await fetch(analyzeFileUrl + `?model=${encodeURIComponent(model)}`, {method:'POST', body: fd});
     if (!resp.ok) {
       const txt = await resp.text();
       summaryEl.innerText = `Error: ${resp.status} ${resp.statusText} - ${txt || 'no details'}`;
@@ -98,8 +120,9 @@ analyzeCsvBtn?.addEventListener('click', async () => {
   fd.append('file', file);
   csvSummary.textContent = 'Uploading and analyzing...';
   downloadCsvBtn.disabled = true;
+  const model = (modelSelect?.value || 'vader');
   try {
-    const resp = await fetch(analyzeCsvUrl, { method: 'POST', body: fd });
+    const resp = await fetch(analyzeCsvUrl + `?model=${encodeURIComponent(model)}`, { method: 'POST', body: fd });
     const contentType = resp.headers.get('content-type') || '';
     if (!resp.ok) {
       const msg = await resp.text();
@@ -113,7 +136,7 @@ analyzeCsvBtn?.addEventListener('click', async () => {
       downloadCsvBtn.disabled = false;
       downloadCsvBtn.onclick = async () => {
         // request CSV format
-        const csvResp = await fetch(analyzeCsvUrl + '?format=csv', { method: 'POST', body: fd });
+        const csvResp = await fetch(analyzeCsvUrl + `?format=csv&model=${encodeURIComponent(model)}`, { method: 'POST', body: fd });
         const blob = await csvResp.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -141,6 +164,27 @@ analyzeCsvBtn?.addEventListener('click', async () => {
     }
   } catch (e) {
     csvSummary.textContent = 'Network or server error: ' + e.message;
+  }
+});
+
+exportPdfBtn?.addEventListener('click', async () => {
+  const text = textEl.value.trim();
+  if (!text) { alert('Enter text first'); return; }
+  const model = (modelSelect?.value || 'vader');
+  try {
+    const resp = await fetch(exportPdfUrl, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text, model}) });
+    if (!resp.ok) { const m = await resp.text(); alert('Failed to export PDF: ' + (m || resp.statusText)); return; }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sentiment_report.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('Error exporting PDF: ' + e.message);
   }
 });
 

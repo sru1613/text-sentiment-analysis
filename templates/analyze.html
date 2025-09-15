@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}Analyze - Sentiment App{% endblock %}
+{% block breadcrumbs %}
+  🧪 Analyze
+{% endblock %}
+{% block content %}
+  <h1>Sentiment Analyzer</h1>
+  <div class="section theme-rose" aria-expanded="true" data-key="sec-analyze">
+    <button class="section-header" type="button"><span class="icon" aria-hidden></span><h2>Analyze Text / File</h2><span class="chevron" aria-hidden>▾</span></button>
+    <div class="section-content">
+      <section class="input">
+        <label for="text">Enter text to analyze</label>
+        <textarea id="text" rows="6" placeholder="Type or paste text here..."></textarea>
+        <div class="controls">
+          <label for="modelSelect" style="margin:0 8px 0 0; font-weight:600">Model:</label>
+          <select id="modelSelect" style="padding:8px 10px; border-radius:8px; background:rgba(0,0,0,0.1); color:inherit; border:1px solid rgba(255,255,255,0.15)">
+            <option value="vader">VADER (default)</option>
+            <option value="rule">Rule-based (demo)</option>
+          </select>
+          <button id="analyzeBtn">Analyze Text</button>
+          <input type="file" id="fileInput" accept=".txt" />
+          <button id="analyzeFileBtn">Analyze File</button>
+          <button id="exportPdfBtn" title="Export a PDF report of the last result">Export PDF</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="section theme-amber" aria-expanded="true" data-key="sec-result">
+    <button class="section-header" type="button"><span class="icon" aria-hidden></span><h2>Result</h2><span class="chevron" aria-hidden>▾</span></button>
+    <div class="section-content">
+      <section class="result">
+        <div id="summary" class="summary">No analysis yet</div>
+        <div class="chartWrap">
+          <canvas id="scoresChart" width="400" height="200"></canvas>
+        </div>
+        <div id="extras" class="summary" style="margin-top:10px"></div>
+        <div id="wordcloudWrap" style="margin-top:10px; display:none">
+          <img id="wordcloudImg" alt="Word Cloud" style="max-width:100%; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.2)" />
+        </div>
+      </section>
+    </div>
+  </div>
+{% endblock %}
+{% block scripts %}
+  <script src="/static/main.js"></script>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Home - Sentiment App{% endblock %}
+{% block breadcrumbs %}
+  🏠 Home
+{% endblock %}
+{% block content %}
+  <h1>Welcome to the Sentiment Analyzer</h1>
+  <div class="section theme-amber" aria-expanded="true">
+    <div class="section-content" style="opacity:1; max-height:none">
+      <div class="summary">
+        <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap">
+          <div style="flex:1; min-width:240px">
+            <h2 style="margin:0 0 6px 0">Understand feelings. Act with clarity.</h2>
+            <p style="margin:0">Analyze text or files, batch-process CSVs, and chat with a supportive bot. Create an account to save your history.</p>
+          </div>
+          <div aria-hidden="true" style="width:200px; height:120px; background: radial-gradient(80px 50px at 30% 40%, rgba(255,107,159,0.25), transparent), radial-gradient(70px 60px at 70% 60%, rgba(125,140,255,0.25), transparent); border:1px solid var(--border); border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:42px">😊📈</div>
+        </div>
+        <p>Analyze text and files for sentiment, batch-process CSVs, chat with a supportive bot, and save your history by creating an account.</p>
+        <div class="controls" style="margin-top:16px; flex-wrap:wrap">
+          <a href="{{ url_for('analyze_page') }}"><button>Start Analyzing</button></a>
+          <a href="{{ url_for('batch_page') }}"><button class="ghost">Batch (CSV)</button></a>
+          {% if g.user_id %}
+          <a href="{{ url_for('history_page') }}"><button class="ghost">Your History</button></a>
+          {% else %}
+          <a href="{{ url_for('login') }}"><button class="ghost">Login</button></a>
+          <a href="{{ url_for('register') }}"><button class="ghost">Register</button></a>
+          {% endif %}
+          <a href="{{ url_for('chat_page') }}"><button class="ghost">Open Chat</button></a>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
