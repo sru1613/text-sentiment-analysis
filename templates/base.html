@@ -8,14 +8,6 @@
   <link rel="stylesheet" href="/static/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   {% block head %}{% endblock %}
-  <style>
-  .nav{display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:12px}
-  .nav a{ color:inherit; text-decoration:none; border:1px solid var(--border); padding:8px 12px; border-radius:8px }
-    .nav a:hover{ background: rgba(255,255,255,0.06) }
-  .nav a.active{ background: rgba(255,255,255,0.12) }
-    .float-chat{ position: fixed; right: 18px; bottom: 18px; z-index: 9999 }
-    .float-chat button{ width:56px; height:56px; border-radius:999px; display:flex; align-items:center; justify-content:center }
-  </style>
 </head>
 <body>
   <main>
@@ -25,10 +17,15 @@
         <a href="{{ url_for('analyze_page') }}" class="{% if request.path.startswith('/ui/analyze') %}active{% endif %}">Analyze</a>
         <a href="{{ url_for('batch_page') }}" class="{% if request.path.startswith('/ui/batch') %}active{% endif %}">Batch</a>
         <a href="{{ url_for('history_page') }}" class="{% if request.path.startswith('/ui/history') %}active{% endif %}">History</a>
-  <a href="{{ url_for('chat_page') }}" class="{% if request.path.startswith('/ui/chat') %}active{% endif %}">Chat</a>
-  <a href="{{ url_for('settings_page') }}" class="{% if request.path.startswith('/ui/settings') %}active{% endif %}">Settings</a>
+        <a href="{{ url_for('chat_page') }}" class="{% if request.path.startswith('/ui/chat') %}active{% endif %}">Chat</a>
+        <a href="{{ url_for('settings_page') }}" class="{% if request.path.startswith('/ui/settings') %}active{% endif %}">Settings</a>
       </div>
-      <div>
+      <div style="display:flex; align-items:center; gap:8px">
+        <div class="accent-palette" title="Accent theme">
+          <div class="accent-swatch" data-accent="blue"><span></span></div>
+          <div class="accent-swatch" data-accent="purple"><span></span></div>
+          <div class="accent-swatch" data-accent="cyan"><span></span></div>
+        </div>
         {% if g.user_id %}
           <a href="{{ url_for('logout') }}" class="{% if request.path.startswith('/logout') %}active{% endif %}">Logout</a>
         {% else %}
@@ -56,6 +53,9 @@
     </a>
   </div>
 
+  <script defer src="/static/base_init.js"></script>
+
   {% block scripts %}{% endblock %}
+<script>document.documentElement.setAttribute('data-server-accent','{{ g.accent_theme|default("blue") }}');document.documentElement.setAttribute('data-auth','{% if g.user_id %}1{% else %}0{% endif %}');</script>
 </body>
 </html>

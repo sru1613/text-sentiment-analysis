@@ -10,8 +10,14 @@
     <div class="section-content">
       <section class="batch">
         <p>Upload a CSV file that has a column named <strong>text</strong>.</p>
-        <div class="controls">
-          <input type="file" id="csvInput" accept=".csv" />
+        <div id="dropZone" class="drop-zone" tabindex="0" aria-label="Drag and drop CSV here or click to select">
+          <input type="file" id="csvInput" accept=".csv" style="display:none" />
+          <div class="dz-instructions">
+            <strong>Drag & Drop</strong> your CSV here<br />or <span class="dz-browse">browse</span>
+          </div>
+          <div class="dz-file" id="dzFileName" style="display:none"></div>
+        </div>
+        <div class="controls" style="margin-top:14px">
           <button id="analyzeCsvBtn">Analyze CSV</button>
           <button id="downloadCsvBtn" disabled>Download Results (CSV)</button>
         </div>

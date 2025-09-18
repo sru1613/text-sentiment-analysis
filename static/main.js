@@ -3,21 +3,34 @@ const analyzeFileBtn = document.getElementById('analyzeFileBtn');
 const textEl = document.getElementById('text');
 const fileInput = document.getElementById('fileInput');
 const summaryEl = document.getElementById('summary');
-const ctx = document.getElementById('scoresChart').getContext('2d');
+// Chart context (only present on analyze page)
 let chart = null;
+const scoresCanvas = document.getElementById('scoresChart');
+let ctx = null;
+if (scoresCanvas && scoresCanvas.getContext) {
+  ctx = scoresCanvas.getContext('2d');
+}
 const modelSelect = document.getElementById('modelSelect');
 const extrasEl = document.getElementById('extras');
 const wordcloudWrap = document.getElementById('wordcloudWrap');
 const wordcloudImg = document.getElementById('wordcloudImg');
 const exportPdfBtn = document.getElementById('exportPdfBtn');
+const scoreBarsEl = document.getElementById('scoreBars');
+const keywordChipsEl = document.getElementById('keywordChips');
 
 // Batch & history elements
 const csvInput = document.getElementById('csvInput');
 const analyzeCsvBtn = document.getElementById('analyzeCsvBtn');
 const downloadCsvBtn = document.getElementById('downloadCsvBtn');
 const csvSummary = document.getElementById('csvSummary');
+const dropZone = document.getElementById('dropZone');
+const dzFileName = document.getElementById('dzFileName');
 const refreshHistoryBtn = document.getElementById('refreshHistoryBtn');
 const historyList = document.getElementById('historyList');
+const historySearch = document.getElementById('historySearch');
+const historyTableBody = document.getElementById('historyTBody');
+let historyData = [];
+let historySort = { key: 'created_at', dir: 'desc' };
 
 // Choose backend origin: if page is served from Flask (port 5000) use same origin,
 // otherwise assume backend at http://127.0.0.1:5000
@@ -37,8 +50,9 @@ function renderResult(data) {
     `<div class="scores">Positive: ${scores.pos.toFixed(3)} | Neutral: ${scores.neu.toFixed(3)} | Negative: ${scores.neg.toFixed(3)} | Compound: ${scores.compound.toFixed(3)}</div>`;
 
   const values = [scores.pos, scores.neu, scores.neg];
-  if (chart) chart.destroy();
-  chart = new Chart(ctx, {
+  if (ctx) {
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
     type: 'bar',
     data: {
       labels: ['Positive','Neutral','Negative'],
@@ -51,12 +65,33 @@ function renderResult(data) {
     options: {
       scales: { y: { beginAtZero: true, max: 1 } }
     }
-  });
+    });
+  }
 
   if (extrasEl) {
     const lang = data.lang ? `Lang: ${data.lang}` : '';
     const kws = Array.isArray(data.keywords) && data.keywords.length ? `Keywords: ${data.keywords.slice(0,8).join(', ')}` : '';
     extrasEl.innerText = [lang, kws].filter(Boolean).join('  |  ');
+  }
+  // score bars
+  if (scoreBarsEl) {
+    const p = Math.round(scores.pos*100);
+    const n = Math.round(scores.neu*100);
+    const g = Math.round(scores.neg*100);
+    scoreBarsEl.innerHTML = `
+      <div class="meter"><span style="width:${p}%;" class="pos" aria-label="Positive ${p}%"></span></div>
+      <div class="meter"><span style="width:${n}%;" class="neu" aria-label="Neutral ${n}%"></span></div>
+      <div class="meter"><span style="width:${g}%;" class="neg" aria-label="Negative ${g}%"></span></div>`;
+    scoreBarsEl.style.display='block';
+  }
+  // keyword chips
+  if (keywordChipsEl) {
+    if (Array.isArray(data.keywords) && data.keywords.length) {
+      keywordChipsEl.innerHTML = data.keywords.slice(0,12).map(k=>`<button type="button" class="chip" tabindex="-1">${k.replaceAll('<','&lt;')}</button>`).join('');
+      keywordChipsEl.style.display='flex';
+    } else {
+      keywordChipsEl.style.display='none';
+    }
   }
   if (wordcloudWrap && wordcloudImg) {
     if (data.wordcloud_png_b64) {
@@ -188,21 +223,97 @@ exportPdfBtn?.addEventListener('click', async () => {
   }
 });
 
-async function loadHistory() {
+function renderHistory(){
+  if (!historyTableBody) return;
+  const term = (historySearch?.value || '').trim().toLowerCase();
+  let filtered = historyData;
+  if (term) {
+    filtered = filtered.filter(r => (r.label||'').toLowerCase().includes(term) || (r.source||'').toLowerCase().includes(term));
+  }
+  filtered.sort((a,b)=>{
+    const k = historySort.key;
+    let av = a[k]; let bv = b[k];
+    if (k === 'created_at') { av = a[k] || ''; bv = b[k] || ''; }
+    if (av < bv) return historySort.dir === 'asc' ? -1 : 1;
+    if (av > bv) return historySort.dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+  if (!filtered.length){
+    historyTableBody.innerHTML = '<tr><td colspan="5" style="padding:14px; text-align:center; opacity:.7">No history yet</td></tr>';
+    return;
+  }
+  historyTableBody.innerHTML = filtered.map(r => {
+    const badgeClass = r.label === 'Positive' ? 'pos' : r.label === 'Negative' ? 'neg' : 'neu';
+    const snippet = (r.text_snippet || '').replace(/</g,'&lt;');
+    return `<tr>
+      <td>${r.created_at || ''}</td>
+      <td>${r.source || ''}</td>
+      <td><span class="badge ${badgeClass}">${r.label}</span></td>
+      <td>${r.pos.toFixed(2)}/${r.neg.toFixed(2)}/${r.neu.toFixed(2)}/${r.compound.toFixed(2)}</td>
+      <td title="${snippet}">${snippet.slice(0,60)}${snippet.length>60?'…':''}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadHistory(){
   try {
     const resp = await fetch(historyUrl);
-    if (!resp.ok) { historyList.textContent = 'Failed to load history'; return; }
+    if (!resp.ok) { historyData = []; renderHistory(); return; }
     const data = await resp.json();
-    if (!data.items?.length) { historyList.textContent = 'No history yet'; return; }
-    const rows = data.items
-      .map(item => `${item.created_at} — [${item.source}] ${item.label} (pos:${item.pos.toFixed(2)} neu:${item.neu.toFixed(2)} neg:${item.neg.toFixed(2)} cmp:${item.compound.toFixed(2)})`);
-    historyList.innerHTML = '<ul><li>' + rows.map(r => r.replaceAll('<','&lt;')).join('</li><li>') + '</li></ul>';
-  } catch (e) {
-    historyList.textContent = 'Network or server error: ' + e.message;
-  }
+    historyData = data.items || [];
+    renderHistory();
+  } catch(e){ historyData = []; renderHistory(); }
 }
+
+historySearch?.addEventListener('input', ()=>{ renderHistory(); });
+
+document.querySelectorAll('#historyTable thead th[data-sort]')?.forEach(th => {
+  th.addEventListener('click', ()=>{
+    const key = th.getAttribute('data-sort');
+    if (historySort.key === key){
+      historySort.dir = historySort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+      historySort.key = key; historySort.dir = 'asc';
+    }
+    document.querySelectorAll('#historyTable thead th[data-sort]').forEach(o=>{
+      o.textContent = o.textContent.replace(/\s*[▾▴]$/,'');
+    });
+    th.textContent = th.textContent.replace(/\s*[▾▴]$/,'') + (historySort.dir==='asc' ? ' ▴' : ' ▾');
+    renderHistory();
+  });
+});
+
 refreshHistoryBtn?.addEventListener('click', loadHistory);
 window.addEventListener('load', loadHistory);
+
+// Drag & Drop CSV
+if (dropZone && csvInput) {
+  const activate = () => dropZone.classList.add('dragover');
+  const deactivate = () => dropZone.classList.remove('dragover');
+  ['dragenter','dragover'].forEach(evt => dropZone.addEventListener(evt, e=>{ e.preventDefault(); e.stopPropagation(); activate(); }));
+  ['dragleave','drop'].forEach(evt => dropZone.addEventListener(evt, e=>{ e.preventDefault(); e.stopPropagation(); if (evt==='drop') return; deactivate(); }));
+  dropZone.addEventListener('drop', e => {
+    const files = e.dataTransfer?.files;
+    if (files && files.length) {
+      const f = files[0];
+      if (!f.name.endsWith('.csv')) { alert('Please drop a .csv file'); deactivate(); return; }
+      csvInput.files = files; // assign
+      dzFileName.textContent = f.name + ' (' + Math.round(f.size/1024) + ' KB)';
+      dzFileName.style.display='block';
+    }
+    deactivate();
+  });
+  dropZone.addEventListener('click', () => csvInput.click());
+  csvInput.addEventListener('change', () => {
+    if (csvInput.files?.length) {
+      const f = csvInput.files[0];
+      dzFileName.textContent = f.name + ' (' + Math.round(f.size/1024) + ' KB)';
+      dzFileName.style.display='block';
+    } else {
+      dzFileName.style.display='none';
+    }
+  });
+}
 
 function getSectionKey(sec){
   return sec.getAttribute('data-key') || '';
@@ -331,6 +442,8 @@ window.addEventListener('load', setupSectionToggles);
   const list = document.getElementById('chatMessages');
   const toneSelect = document.getElementById('toneSelect');
   const chipsWrap = document.getElementById('quickReplies');
+  // If chat UI not present on this page, skip initializing logic
+  if (!sendBtn && !input && !list) { return; }
 
   // Ensure the expanded section grows to fit newly appended chat content
   function adjustSectionHeightFor(el){

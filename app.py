@@ -110,16 +110,26 @@ def init_db():
             """
         )
         # Settings per user
-        conn.execute(
+        cur = conn.cursor()
+        cur.execute(
             """
             CREATE TABLE IF NOT EXISTS user_settings (
-                user_id INTEGER PRIMARY KEY,
-                default_tone TEXT,
-                default_model TEXT,
-                FOREIGN KEY(user_id) REFERENCES users(id)
+               user_id INTEGER PRIMARY KEY,
+               default_tone TEXT DEFAULT 'listening',
+               default_model TEXT DEFAULT 'vader',
+               accent_theme TEXT DEFAULT 'blue',
+               FOREIGN KEY(user_id) REFERENCES users(id)
             )
             """
         )
+        # Attempt to add accent_theme if missing (older schema). Safe no-op if already exists.
+        try:
+            cur.execute("PRAGMA table_info(user_settings)")
+            cols = [r[1] for r in cur.fetchall()]
+            if 'accent_theme' not in cols:
+                cur.execute("ALTER TABLE user_settings ADD COLUMN accent_theme TEXT DEFAULT 'blue'")
+        except Exception:
+            pass
         # Backfill user_id column if db existed without it
         if not _column_exists(conn, 'analyses', 'user_id'):
             try:
@@ -181,6 +191,17 @@ def current_user_id() -> Optional[int]:
 @app.before_request
 def load_current_user():
     g.user_id = session.get('user_id')
+    # Load accent theme into g for template use
+    if g.user_id:
+        try:
+            with sqlite3.connect(DB_PATH) as conn:
+                cur = conn.execute("SELECT accent_theme FROM user_settings WHERE user_id=?", (g.user_id,))
+                row = cur.fetchone()
+                g.accent_theme = row[0] if row and row[0] else 'blue'
+        except Exception:
+            g.accent_theme = 'blue'
+    else:
+        g.accent_theme = 'blue'
 
 
 # ---------- Core analysis ----------
@@ -315,7 +336,7 @@ def settings_page():
     # Load current settings
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
-        cur = conn.execute("SELECT default_tone, default_model FROM user_settings WHERE user_id=?", (current_user_id(),))
+        cur = conn.execute("SELECT default_tone, default_model, accent_theme FROM user_settings WHERE user_id=?", (current_user_id(),))
         row = cur.fetchone()
     return render_template('settings.html', settings=dict(row) if row else {})
 
@@ -840,18 +861,19 @@ def settings_api():
     if request.method == 'GET':
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = sqlite3.Row
-            cur = conn.execute("SELECT default_tone, default_model FROM user_settings WHERE user_id=?", (uid,))
+            cur = conn.execute("SELECT default_tone, default_model, accent_theme FROM user_settings WHERE user_id=?", (uid,))
             row = cur.fetchone()
         return jsonify({'settings': dict(row) if row else {}})
     data = request.form or request.get_json(silent=True) or {}
     tone = (data.get('default_tone') or '').strip() or None
     model = (data.get('default_model') or '').strip() or None
+    accent = (data.get('accent_theme') or '').strip() or None
     with sqlite3.connect(DB_PATH) as conn:
         cur = conn.execute("SELECT 1 FROM user_settings WHERE user_id=?", (uid,)).fetchone()
         if cur:
-            conn.execute("UPDATE user_settings SET default_tone=?, default_model=? WHERE user_id=?", (tone, model, uid))
+            conn.execute("UPDATE user_settings SET default_tone=?, default_model=?, accent_theme=? WHERE user_id=?", (tone, model, accent, uid))
         else:
-            conn.execute("INSERT INTO user_settings (user_id, default_tone, default_model) VALUES (?, ?, ?)", (uid, tone, model))
+            conn.execute("INSERT INTO user_settings (user_id, default_tone, default_model, accent_theme) VALUES (?, ?, ?, ?)", (uid, tone, model, accent))
         conn.commit()
     return jsonify({'ok': True})
 
@@ -875,6 +897,17 @@ def health():
 
 # Initialize DB on startup
 init_db()
+
+# --- Security Headers (CSP) ---
+@app.after_request
+def add_security_headers(resp):
+    # Allow self + trusted CDN for Chart.js; disallow eval/inline
+    csp = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self';"
+    resp.headers.setdefault('Content-Security-Policy', csp)
+    resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    resp.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    resp.headers.setdefault('X-Frame-Options', 'DENY')
+    return resp
 
 
 # ---------- Auth routes ----------

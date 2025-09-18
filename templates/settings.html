@@ -17,19 +17,16 @@
         <option value="vader" {% if settings.default_model=='vader' %}selected{% endif %}>VADER (fast)</option>
         <option value="rule" {% if settings.default_model=='rule' %}selected{% endif %}>Rule-based (demo)</option>
       </select>
+        <label style="margin:0">Accent Theme (syncs with header swatches)</label>
+        <select name="accent_theme" style="padding:8px 10px; border-radius:8px; background:rgba(0,0,0,0.1); color:inherit; border:1px solid var(--border)">
+          <option value="blue" {% if settings.accent_theme=='blue' or not settings.accent_theme %}selected{% endif %}>Blue (Default)</option>
+          <option value="purple" {% if settings.accent_theme=='purple' %}selected{% endif %}>Purple</option>
+          <option value="cyan" {% if settings.accent_theme=='cyan' %}selected{% endif %}>Cyan</option>
+        </select>
       <button type="submit">Save</button>
     </div>
   </form>
-  <script>
-  (function(){
-    const form = document.getElementById('settingsForm');
-    form?.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const fd = new FormData(form);
-      const body = Object.fromEntries(fd.entries());
-      const resp = await fetch('/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-      if (resp.ok) alert('Saved'); else alert('Failed to save');
-    });
-  })();
-  </script>
+  {% block scripts %}
+  <script defer src="/static/settings.js"></script>
+  {% endblock %}
 {% endblock %}
