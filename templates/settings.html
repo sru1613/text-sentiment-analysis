@@ -3,8 +3,8 @@
 {% block breadcrumbs %}⚙️ Settings{% endblock %}
 {% block content %}
   <h1>Settings</h1>
-  <form id="settingsForm" class="section theme-indigo" style="padding:16px; border-radius:14px">
-    <div class="controls" style="flex-wrap:wrap">
+  <form id="settingsForm" class="section theme-indigo pad-lg radius-xl flex-col gap-md">
+    <div class="controls flex-wrap gap-md">
       <label style="margin:0">Default Tone</label>
       <select name="default_tone" style="padding:8px 10px; border-radius:8px; background:rgba(0,0,0,0.1); color:inherit; border:1px solid var(--border)">
         <option value="">System default</option>
@@ -23,6 +23,10 @@
           <option value="purple" {% if settings.accent_theme=='purple' %}selected{% endif %}>Purple</option>
           <option value="cyan" {% if settings.accent_theme=='cyan' %}selected{% endif %}>Cyan</option>
         </select>
+      <div class="toggle-group">
+        <label><input type="checkbox" name="background_image_enabled" {% if settings.background_image_enabled %}checked{% endif %}/> Background Image</label>
+        <label><input type="checkbox" name="noise_enabled" {% if settings.noise_enabled %}checked{% endif %}/> Noise Texture</label>
+      </div>
       <button type="submit">Save</button>
     </div>
   </form>

@@ -79,10 +79,14 @@ function renderResult(data) {
     const n = Math.round(scores.neu*100);
     const g = Math.round(scores.neg*100);
     scoreBarsEl.innerHTML = `
-      <div class="meter"><span style="width:${p}%;" class="pos" aria-label="Positive ${p}%"></span></div>
-      <div class="meter"><span style="width:${n}%;" class="neu" aria-label="Neutral ${n}%"></span></div>
-      <div class="meter"><span style="width:${g}%;" class="neg" aria-label="Negative ${g}%"></span></div>`;
+      <div class="meter"><span data-target="${p}" style="width:0%" class="pos" aria-label="Positive ${p}%"></span></div>
+      <div class="meter"><span data-target="${n}" style="width:0%" class="neu" aria-label="Neutral ${n}%"></span></div>
+      <div class="meter"><span data-target="${g}" style="width:0%" class="neg" aria-label="Negative ${g}%"></span></div>`;
     scoreBarsEl.style.display='block';
+    // Reconnect observer for new bars
+    if (window.__scoreObserverInit) {
+      window.__scoreObserverInit();
+    }
   }
   // keyword chips
   if (keywordChipsEl) {
@@ -392,6 +396,46 @@ function setupSectionToggles(){
 }
 
 window.addEventListener('load', setupSectionToggles);
+
+// Score bar IntersectionObserver animation
+(function(){
+  const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let observer = null;
+  function animateBar(el){
+    if (!el) return;
+    const target = parseInt(el.getAttribute('data-target')||'0',10);
+    if (prefersReduced){
+      el.style.width = target + '%';
+      return;
+    }
+    requestAnimationFrame(()=>{
+      el.style.transition = 'width 900ms cubic-bezier(.4,0,.2,1)';
+      el.style.width = target + '%';
+    });
+  }
+  function handle(entries){
+    entries.forEach(entry=>{
+      if (entry.isIntersecting){
+        const spans = entry.target.querySelectorAll('[data-target]');
+        spans.forEach(s=>{
+          if (!s.__animated){ animateBar(s); s.__animated = true; }
+        });
+        // Once animated, no need to observe further for that container
+        observer.unobserve(entry.target);
+      }
+    });
+  }
+  function init(){
+    if (observer) { try { observer.disconnect(); } catch{} }
+    observer = new IntersectionObserver(handle, { threshold: 0.35 });
+    const container = document.getElementById('scoreBars');
+    if (container && container.querySelector('[data-target]')){
+      observer.observe(container);
+    }
+  }
+  window.__scoreObserverInit = init;
+  window.addEventListener('load', init);
+})();
 
 // Theme toggle logic
 (function(){

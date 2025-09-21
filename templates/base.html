@@ -1,11 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-server-accent="{{ g.accent_theme|default('blue') }}" data-auth="{% if g.user_id %}1{% else %}0{% endif %}" data-bgimg="{% if g.bg_image_enabled %}1{% else %}0{% endif %}" data-noise="{% if g.noise_enabled %}1{% else %}0{% endif %}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}Sentiment App{% endblock %}</title>
   <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAAAASUVORK5CYII=">
   <link rel="stylesheet" href="/static/styles.css" />
+  <!-- Preload hero background image for faster first paint -->
+  <link rel="preload" as="image" href="/images/61347fc0-7b09-40d1-bb26-3a1da1a6ffae.jpeg" imagesrcset="/images/61347fc0-7b09-40d1-bb26-3a1da1a6ffae.jpeg 1920w" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   {% block head %}{% endblock %}
 </head>
@@ -56,6 +58,5 @@
   <script defer src="/static/base_init.js"></script>
 
   {% block scripts %}{% endblock %}
-<script>document.documentElement.setAttribute('data-server-accent','{{ g.accent_theme|default("blue") }}');document.documentElement.setAttribute('data-auth','{% if g.user_id %}1{% else %}0{% endif %}');</script>
 </body>
 </html>

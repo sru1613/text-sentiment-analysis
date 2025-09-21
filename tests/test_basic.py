@@ -1,11 +1,17 @@
 import json
 import os
+import sys
 import importlib
 import unittest
 
 from flask import Flask
 
 APP_MODULE_NAME = 'app'
+
+# Ensure project root is on sys.path so 'app' can be imported when pytest is invoked
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
 class SentimentAppBasicTests(unittest.TestCase):
     @classmethod
@@ -27,7 +33,8 @@ class SentimentAppBasicTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200, resp.data)
         data = resp.get_json()
         self.assertIn('label', data)
-        self.assertIn(data['label'], ('positive', 'negative', 'neutral'))
+        # App returns capitalized labels (Positive/Negative/Neutral)
+        self.assertIn(data['label'], ('Positive', 'Negative', 'Neutral'))
         self.assertIn('scores', data)
         self.assertIn('compound', data['scores'])
 

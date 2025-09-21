@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, jsonify, make_response, redirect, url_for, session, g, flash, send_file
+from flask import Flask, request, render_template, jsonify, make_response, redirect, url_for, session, g, flash, send_file, send_from_directory
 from flask_cors import CORS
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from flasgger import Swagger
@@ -118,6 +118,8 @@ def init_db():
                default_tone TEXT DEFAULT 'listening',
                default_model TEXT DEFAULT 'vader',
                accent_theme TEXT DEFAULT 'blue',
+               background_image_enabled INTEGER DEFAULT 1,
+               noise_enabled INTEGER DEFAULT 1,
                FOREIGN KEY(user_id) REFERENCES users(id)
             )
             """
@@ -128,6 +130,10 @@ def init_db():
             cols = [r[1] for r in cur.fetchall()]
             if 'accent_theme' not in cols:
                 cur.execute("ALTER TABLE user_settings ADD COLUMN accent_theme TEXT DEFAULT 'blue'")
+            if 'background_image_enabled' not in cols:
+                cur.execute("ALTER TABLE user_settings ADD COLUMN background_image_enabled INTEGER DEFAULT 1")
+            if 'noise_enabled' not in cols:
+                cur.execute("ALTER TABLE user_settings ADD COLUMN noise_enabled INTEGER DEFAULT 1")
         except Exception:
             pass
         # Backfill user_id column if db existed without it
@@ -336,9 +342,16 @@ def settings_page():
     # Load current settings
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
-        cur = conn.execute("SELECT default_tone, default_model, accent_theme FROM user_settings WHERE user_id=?", (current_user_id(),))
+        cur = conn.execute("SELECT default_tone, default_model, accent_theme, background_image_enabled, noise_enabled FROM user_settings WHERE user_id=?", (current_user_id(),))
         row = cur.fetchone()
-    return render_template('settings.html', settings=dict(row) if row else {})
+    settings = {
+        'default_tone': row['default_tone'] if row else None,
+        'default_model': row['default_model'] if row else None,
+        'accent_theme': row['accent_theme'] if row else 'blue',
+        'background_image_enabled': bool(row['background_image_enabled']) if row else True,
+        'noise_enabled': bool(row['noise_enabled']) if row else True,
+    }
+    return render_template('settings.html', settings=settings)
 
 
 @app.route('/analyze', methods=['POST'])
@@ -861,19 +874,27 @@ def settings_api():
     if request.method == 'GET':
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = sqlite3.Row
-            cur = conn.execute("SELECT default_tone, default_model, accent_theme FROM user_settings WHERE user_id=?", (uid,))
+            cur = conn.execute("SELECT default_tone, default_model, accent_theme, background_image_enabled, noise_enabled FROM user_settings WHERE user_id=?", (uid,))
             row = cur.fetchone()
-        return jsonify({'settings': dict(row) if row else {}})
+        if row:
+            data = dict(row)
+            data['background_image_enabled'] = bool(data.get('background_image_enabled', 1))
+            data['noise_enabled'] = bool(data.get('noise_enabled', 1))
+        else:
+            data = {}
+        return jsonify({'settings': data})
     data = request.form or request.get_json(silent=True) or {}
     tone = (data.get('default_tone') or '').strip() or None
     model = (data.get('default_model') or '').strip() or None
     accent = (data.get('accent_theme') or '').strip() or None
+    bg_image_enabled = 1 if str(data.get('background_image_enabled')) in ('1','true','on','yes') else 0
+    noise_enabled = 1 if str(data.get('noise_enabled')) in ('1','true','on','yes') else 0
     with sqlite3.connect(DB_PATH) as conn:
         cur = conn.execute("SELECT 1 FROM user_settings WHERE user_id=?", (uid,)).fetchone()
         if cur:
-            conn.execute("UPDATE user_settings SET default_tone=?, default_model=?, accent_theme=? WHERE user_id=?", (tone, model, accent, uid))
+            conn.execute("UPDATE user_settings SET default_tone=?, default_model=?, accent_theme=?, background_image_enabled=?, noise_enabled=? WHERE user_id=?", (tone, model, accent, bg_image_enabled, noise_enabled, uid))
         else:
-            conn.execute("INSERT INTO user_settings (user_id, default_tone, default_model, accent_theme) VALUES (?, ?, ?, ?)", (uid, tone, model, accent))
+            conn.execute("INSERT INTO user_settings (user_id, default_tone, default_model, accent_theme, background_image_enabled, noise_enabled) VALUES (?, ?, ?, ?, ?, ?)", (uid, tone, model, accent, bg_image_enabled, noise_enabled))
         conn.commit()
     return jsonify({'ok': True})
 
@@ -902,7 +923,7 @@ init_db()
 @app.after_request
 def add_security_headers(resp):
     # Allow self + trusted CDN for Chart.js; disallow eval/inline
-    csp = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self';"
+    csp = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; frame-ancestors 'self';"
     resp.headers.setdefault('Content-Security-Policy', csp)
     resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
     resp.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
@@ -963,6 +984,7 @@ def logout():
     session.pop('user_id', None)
     flash('Logged out', 'success')
     return redirect(url_for('login'))
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

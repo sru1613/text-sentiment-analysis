@@ -71,4 +71,6 @@
       showToast('Accent theme: '+accent,'info',{ttl:1800});
     });
   });
+
+  // Hero background image removed: no progressive loading required.
 })();

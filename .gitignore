@@ -1,0 +1,93 @@
+# ---- Python Bytecode & Caches ----
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ---- Virtual Environments ----
+.venv/
+venv/
+env/
+ENV/
+
+# ---- Package / Build Artifacts ----
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ---- Testing & Coverage ----
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+# ---- Type Checking / Linters ----
+.mypy_cache/
+.pyre/
+.pytype/
+.ruff_cache/
+
+# ---- Editor & IDE ----
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ---- OS / Misc ----
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ---- Environment / Secrets ----
+.env
+.env.*
+*.env
+*.secret
+secrets.*
+*.bak
+*.old
+
+# ---- Logs ----
+logs/
+*.log
+
+# ---- SQLite / Local Data ----
+# Ignore local runtime databases; keep schema code instead.
+# If you want to version a starter DB, remove the next two lines.
+*.db
+*.sqlite3
+
+# Keep migrations if later added
+!migrations/**/*.py
+
+# ---- Application Generated Artifacts ----
+# Wordcloud or temp images (adjust if you add permanent assets)
+images/wordcloud_*.png
+
+# PDF exports (if you ever persist them locally)
+exports/
+
+# ---- Node / Frontend (future-proof if you add tooling) ----
+node_modules/
+*.tsbuildinfo
+
+# ---- Python Version Manager ----
+.python-version
+
+# ---- Jupyter (if exploratory notebooks get added) ----
+.ipynb_checkpoints/
+
+# ---- Cache / Temp ----
+.tmp/
+.temp/
+*.tmp
+
+# ---- Lockfiles you might not want (uncomment if needed) ----
+# poetry.lock
+# Pipfile.lock
+
+# ---- Allow specific kept files in otherwise ignored dirs ----
+!data/README*
