@@ -32,6 +32,18 @@ const historyTableBody = document.getElementById('historyTBody');
 let historyData = [];
 let historySort = { key: 'created_at', dir: 'desc' };
 
+// Helpers for safe formatting
+function escapeHtml(s){
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#39;");
+}
+function fmtNum(n){ const v = Number(n); if (!isFinite(v)) return '0.00'; return v.toFixed(2); }
+
 // Choose backend origin: if page is served from Flask (port 5000) use same origin,
 // otherwise assume backend at http://127.0.0.1:5000
 const currentOrigin = window.location.origin;
@@ -46,8 +58,11 @@ function renderResult(data) {
   const label = data.label || 'Neutral';
   const emoji = data.emoji || '😐';
   const scores = data.scores || {pos:0,neu:0,neg:0,compound:0};
-  summaryEl.innerHTML = `<div class="label">${label} ${emoji}</div>` +
-    `<div class="scores">Positive: ${scores.pos.toFixed(3)} | Neutral: ${scores.neu.toFixed(3)} | Negative: ${scores.neg.toFixed(3)} | Compound: ${scores.compound.toFixed(3)}</div>`;
+    summaryEl.innerHTML = '';
+    const lbl = document.createElement('div'); lbl.className = 'label'; lbl.textContent = label + ' ' + emoji;
+    const scr = document.createElement('div'); scr.className = 'scores';
+    scr.textContent = `Positive: ${fmtNum(scores.pos)} | Neutral: ${fmtNum(scores.neu)} | Negative: ${fmtNum(scores.neg)} | Compound: ${fmtNum(scores.compound)}`;
+    summaryEl.appendChild(lbl); summaryEl.appendChild(scr);
 
   const values = [scores.pos, scores.neu, scores.neg];
   if (ctx) {
@@ -75,9 +90,9 @@ function renderResult(data) {
   }
   // score bars
   if (scoreBarsEl) {
-    const p = Math.round(scores.pos*100);
-    const n = Math.round(scores.neu*100);
-    const g = Math.round(scores.neg*100);
+  const p = Math.round((Number(scores.pos) || 0) * 100);
+  const n = Math.round((Number(scores.neu) || 0) * 100);
+  const g = Math.round((Number(scores.neg) || 0) * 100);
     scoreBarsEl.innerHTML = `
       <div class="meter"><span data-target="${p}" style="width:0%" class="pos" aria-label="Positive ${p}%"></span></div>
       <div class="meter"><span data-target="${n}" style="width:0%" class="neu" aria-label="Neutral ${n}%"></span></div>
@@ -91,7 +106,10 @@ function renderResult(data) {
   // keyword chips
   if (keywordChipsEl) {
     if (Array.isArray(data.keywords) && data.keywords.length) {
-      keywordChipsEl.innerHTML = data.keywords.slice(0,12).map(k=>`<button type="button" class="chip" tabindex="-1">${k.replaceAll('<','&lt;')}</button>`).join('');
+      keywordChipsEl.innerHTML = '';
+      data.keywords.slice(0,12).forEach(k=>{
+        const b = document.createElement('button'); b.type='button'; b.className='chip'; b.tabIndex=-1; b.textContent = k; keywordChipsEl.appendChild(b);
+      });
       keywordChipsEl.style.display='flex';
     } else {
       keywordChipsEl.style.display='none';
@@ -243,20 +261,25 @@ function renderHistory(){
     return 0;
   });
   if (!filtered.length){
-    historyTableBody.innerHTML = '<tr><td colspan="5" style="padding:14px; text-align:center; opacity:.7">No history yet</td></tr>';
+    historyTableBody.innerHTML = '';
+    const tr = document.createElement('tr');
+    const td = document.createElement('td'); td.colSpan = 5; td.style.padding='14px'; td.style.textAlign='center'; td.style.opacity='.7'; td.textContent = 'No history yet';
+    tr.appendChild(td); historyTableBody.appendChild(tr);
     return;
   }
-  historyTableBody.innerHTML = filtered.map(r => {
-    const badgeClass = r.label === 'Positive' ? 'pos' : r.label === 'Negative' ? 'neg' : 'neu';
-    const snippet = (r.text_snippet || '').replace(/</g,'&lt;');
-    return `<tr>
-      <td>${r.created_at || ''}</td>
-      <td>${r.source || ''}</td>
-      <td><span class="badge ${badgeClass}">${r.label}</span></td>
-      <td>${r.pos.toFixed(2)}/${r.neg.toFixed(2)}/${r.neu.toFixed(2)}/${r.compound.toFixed(2)}</td>
-      <td title="${snippet}">${snippet.slice(0,60)}${snippet.length>60?'…':''}</td>
-    </tr>`;
-  }).join('');
+  historyTableBody.innerHTML = '';
+  filtered.forEach(r => {
+    const tr = document.createElement('tr');
+    const tdDate = document.createElement('td'); tdDate.textContent = r.created_at || '';
+    const tdSource = document.createElement('td'); tdSource.textContent = r.source || '';
+    const tdLabel = document.createElement('td');
+    const span = document.createElement('span'); span.className = 'badge ' + (r.label === 'Positive' ? 'pos' : r.label === 'Negative' ? 'neg' : 'neu'); span.textContent = r.label || '';
+    tdLabel.appendChild(span);
+    const tdScores = document.createElement('td'); tdScores.textContent = `${fmtNum(r.pos)}/${fmtNum(r.neg)}/${fmtNum(r.neu)}/${fmtNum(r.compound)}`;
+    const tdSnippet = document.createElement('td'); const snippet = (r.text_snippet || ''); tdSnippet.title = snippet; tdSnippet.textContent = snippet.length>60 ? snippet.slice(0,60)+'…' : snippet;
+    tr.appendChild(tdDate); tr.appendChild(tdSource); tr.appendChild(tdLabel); tr.appendChild(tdScores); tr.appendChild(tdSnippet);
+    historyTableBody.appendChild(tr);
+  });
 }
 
 async function loadHistory(){
@@ -507,7 +530,9 @@ window.addEventListener('load', setupSectionToggles);
     const div = document.createElement('div');
     div.style.marginTop = '8px';
     div.style.whiteSpace = 'pre-wrap';
-    div.innerHTML = `<strong>${type}:</strong> ${text.replaceAll('<','&lt;')}`;
+    const strong = document.createElement('strong'); strong.textContent = type + ':';
+    div.appendChild(strong);
+    div.appendChild(document.createTextNode(' ' + (text || '')));
     list.appendChild(div);
     list.scrollTop = list.scrollHeight;
     adjustSectionHeightFor(list);
@@ -521,10 +546,15 @@ window.addEventListener('load', setupSectionToggles);
     const posW = Math.round((pos/total)*120);
     const neuW = Math.round((neu/total)*120);
     const negW = Math.max(0, 120 - posW - neuW);
-    const wrap = document.createElement('div');
-    wrap.className = 'sentibar';
-    wrap.innerHTML = `<span class="bar"><span class="seg pos" style="width:${posW}px"></span><span class="seg neu" style="width:${neuW}px"></span><span class="seg neg" style="width:${negW}px"></span></span>`;
-    return wrap;
+  const wrap = document.createElement('div');
+  wrap.className = 'sentibar';
+  const bar = document.createElement('span'); bar.className = 'bar';
+  const sPos = document.createElement('span'); sPos.className='seg pos'; sPos.style.width = posW + 'px';
+  const sNeu = document.createElement('span'); sNeu.className='seg neu'; sNeu.style.width = neuW + 'px';
+  const sNeg = document.createElement('span'); sNeg.className='seg neg'; sNeg.style.width = negW + 'px';
+  bar.appendChild(sPos); bar.appendChild(sNeu); bar.appendChild(sNeg);
+  wrap.appendChild(bar);
+  return wrap;
   }
 
   function formatTime(d){
@@ -541,7 +571,17 @@ window.addEventListener('load', setupSectionToggles);
     const safe = (text || '').replaceAll('<','&lt;');
     const ts = opts?.timestamp instanceof Date ? opts.timestamp : new Date();
     const badge = (opts?.tone && type !== 'You') ? `<span class="badge ${opts.tone}">${opts.tone}</span>` : '';
-    item.innerHTML = `<div><strong>${strong}:</strong> ${safe} ${badge}</div>`;
+    const outer = document.createElement('div');
+    const inner = document.createElement('div');
+    const sEl = document.createElement('strong'); sEl.textContent = strong + ':';
+    inner.appendChild(sEl);
+    inner.appendChild(document.createTextNode(' ' + safe));
+    if (badge) {
+      const spanBadge = document.createElement('span'); spanBadge.className = 'badge ' + (opts?.tone || ''); spanBadge.textContent = opts?.tone || '';
+      inner.appendChild(document.createTextNode(' ')); inner.appendChild(spanBadge);
+    }
+    outer.appendChild(inner);
+    item.appendChild(outer);
     if (scores) item.appendChild(makeBar(scores));
     const t = document.createElement('div');
     t.className = 'time';
@@ -556,7 +596,14 @@ window.addEventListener('load', setupSectionToggles);
     const bubble = document.createElement('div');
     bubble.className = 'chat-msg bot typing';
     bubble.setAttribute('data-typing','1');
-    bubble.innerHTML = `<div><strong>Bot:</strong> <span class="typing">typing<span class=\"dots\"><span class=\"dot\"></span><span class=\"dot\"></span><span class=\"dot\"></span></span></span></div>`;
+  const inner = document.createElement('div');
+  const sEl = document.createElement('strong'); sEl.textContent = 'Bot:';
+  const spanTyping = document.createElement('span'); spanTyping.className = 'typing'; spanTyping.textContent = ' typing';
+  const dots = document.createElement('span'); dots.className = 'dots';
+  for (let i=0;i<3;i++){ const d = document.createElement('span'); d.className='dot'; dots.appendChild(d); }
+  spanTyping.appendChild(dots);
+  inner.appendChild(sEl); inner.appendChild(document.createTextNode(' ')); inner.appendChild(spanTyping);
+  bubble.appendChild(inner);
     list.appendChild(bubble);
     list.scrollTop = list.scrollHeight;
     adjustSectionHeightFor(list);
@@ -585,7 +632,8 @@ window.addEventListener('load', setupSectionToggles);
     if (window.__chatAppend) window.__chatAppend('You', message, userScores, { timestamp: new Date() }); else {
       const div = document.createElement('div');
       div.style.marginTop = '8px';
-      div.innerHTML = `<strong>You:</strong> ${message.replaceAll('<','&lt;')}`;
+  const strong = document.createElement('strong'); strong.textContent = 'You:';
+  div.appendChild(strong); div.appendChild(document.createTextNode(' ' + message));
       list.appendChild(div);
       adjustSectionHeightFor(list);
     }

@@ -28,6 +28,10 @@ except Exception:
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
+# Ensure JSON responses can include non-ASCII characters (emojis, accented text)
+# Flask defaults to ASCII-only JSON which escapes unicode sequences (e.g. "\uXXXX")
+# Setting this to False returns UTF-8 characters directly which renders cleanly in browsers.
+app.config['JSON_AS_ASCII'] = False
 analyzer = SentimentIntensityAnalyzer()
 # Allow Cross-Origin requests during development (e.g., page served from port 5500)
 CORS(app)
