@@ -2,7 +2,7 @@
 {% block title %}Login - Sentiment App{% endblock %}
 {% block content %}
   <h1>Login</h1>
-  <form method="post" class="section theme-indigo" style="padding:16px; border-radius:14px">
+  <form method="post" class="section theme-indigo" style="padding:16px; border-radius:14px" aria-describedby="loginHelp">
     <div style="margin-bottom:10px">
       <label>Email</label>
       <input type="email" name="email" required style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:rgba(0,0,0,0.05); color:inherit" />
@@ -11,6 +11,7 @@
       <label>Password</label>
       <input type="password" name="password" required style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:rgba(0,0,0,0.05); color:inherit" />
     </div>
+    <div id="loginHelp" style="font-size:12px; color:var(--muted); margin:4px 0 10px">Enter the credentials you used during registration.</div>
     <button type="submit">Login</button>
   </form>
 {% endblock %}

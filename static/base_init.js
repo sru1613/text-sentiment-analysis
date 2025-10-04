@@ -73,4 +73,16 @@
   });
 
   // Hero background image removed: no progressive loading required.
+
+  // Delegate clicks for elements with data-href (used by control-btn anchors)
+  document.addEventListener('click', (e)=>{
+    const el = e.target.closest && e.target.closest('[data-href]');
+    if (!el) return;
+    const url = el.getAttribute('data-href');
+    if (!url) return;
+    // allow normal Ctrl/Cmd + click to open in new tab
+    if (e.ctrlKey || e.metaKey || e.button === 1) return;
+    e.preventDefault();
+    window.location.href = url;
+  });
 })();

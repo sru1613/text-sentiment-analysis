@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-server-accent="{{ g.accent_theme|default('blue') }}" data-auth="{% if g.user_id %}1{% else %}0{% endif %}" data-bgimg="{% if g.bg_image_enabled %}1{% else %}0{% endif %}" data-noise="{% if g.noise_enabled %}1{% else %}0{% endif %}">
+<html lang="en" data-server-accent="{{ g.accent_theme|default('blue') }}" data-auth="{% if g.user_id %}1{% else %}0{% endif %}" data-glass="{% if g.use_glass is defined %}{% if g.use_glass %}1{% else %}0{% endif %}{% else %}1{% endif %}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -9,9 +9,11 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   {% block head %}{% endblock %}
 </head>
-<body>
-  <main>
-    <div class="nav">
+<body data-bgimg="{% if g.bg_image_enabled %}1{% else %}0{% endif %}" data-noise="{% if g.noise_enabled %}1{% else %}0{% endif %}">
+  <a href="#app-main" class="skip-link" style="position:absolute;left:-999px;top:-999px;background:var(--accent-gradient);color:#0d1b26;padding:8px 12px;border-radius:8px;font-weight:600;z-index:10000">Skip to content</a>
+  <main id="app-main" role="main" tabindex="-1">
+    <div class="glass-wrap">
+  <div class="nav" role="navigation" aria-label="Primary">
       <div>
         <a href="{{ url_for('index') }}" class="{% if request.path=='/' %}active{% endif %}">Home</a>
         <a href="{{ url_for('analyze_page') }}" class="{% if request.path.startswith('/ui/analyze') %}active{% endif %}">Analyze</a>
@@ -44,13 +46,12 @@
     {% block content %}{% endblock %}
 
     <footer></footer>
+    </div>
   </main>
 
   <!-- Floating chat icon present on all pages -->
   <div class="float-chat">
-    <a title="Open Chat" href="{{ url_for('chat_page') }}">
-      <button>💬</button>
-    </a>
+    <a title="Open Chat" href="{{ url_for('chat_page') }}" class="chat-fab" role="button">💬</a>
   </div>
 
   <script defer src="/static/base_init.js"></script>

@@ -18,6 +18,18 @@ const exportPdfBtn = document.getElementById('exportPdfBtn');
 const scoreBarsEl = document.getElementById('scoreBars');
 const keywordChipsEl = document.getElementById('keywordChips');
 
+// Utility: adjust parent section content height after dynamic injections so nothing gets cut
+function adjustExpandedSectionHeight(node){
+  try {
+    if (!node) return;
+    const sec = node.closest && node.closest('.section');
+    if (!sec || sec.getAttribute('aria-expanded') !== 'true') return;
+    const content = sec.querySelector('.section-content');
+    if (!content) return;
+    requestAnimationFrame(()=>{ content.style.maxHeight = content.scrollHeight + 'px'; });
+  } catch {}
+}
+
 // Batch & history elements
 const csvInput = document.getElementById('csvInput');
 const analyzeCsvBtn = document.getElementById('analyzeCsvBtn');
@@ -58,11 +70,14 @@ function renderResult(data) {
   const label = data.label || 'Neutral';
   const emoji = data.emoji || '😐';
   const scores = data.scores || {pos:0,neu:0,neg:0,compound:0};
-    summaryEl.innerHTML = '';
+  summaryEl.innerHTML = '';
     const lbl = document.createElement('div'); lbl.className = 'label'; lbl.textContent = label + ' ' + emoji;
     const scr = document.createElement('div'); scr.className = 'scores';
     scr.textContent = `Positive: ${fmtNum(scores.pos)} | Neutral: ${fmtNum(scores.neu)} | Negative: ${fmtNum(scores.neg)} | Compound: ${fmtNum(scores.compound)}`;
     summaryEl.appendChild(lbl); summaryEl.appendChild(scr);
+  summaryEl.setAttribute('data-sentiment', label);
+  summaryEl.setAttribute('role','region');
+  summaryEl.setAttribute('aria-label','Sentiment summary');
 
   const values = [scores.pos, scores.neu, scores.neg];
   if (ctx) {
@@ -84,9 +99,13 @@ function renderResult(data) {
   }
 
   if (extrasEl) {
-    const lang = data.lang ? `Lang: ${data.lang}` : '';
-    const kws = Array.isArray(data.keywords) && data.keywords.length ? `Keywords: ${data.keywords.slice(0,8).join(', ')}` : '';
-    extrasEl.innerText = [lang, kws].filter(Boolean).join('  |  ');
+    const parts = [];
+    if (data.lang) parts.push(`<div><strong>Language:</strong> ${escapeHtml(data.lang)}</div>`);
+    if (Array.isArray(data.keywords) && data.keywords.length) {
+      parts.push(`<div><strong>Keywords:</strong> ${data.keywords.slice(0,8).map(k=>`<span class="kw">${escapeHtml(k)}</span>`).join(', ')}</div>`);
+    }
+    if (data.label) parts.push(`<div><strong>Classification:</strong> ${escapeHtml(data.label)} ${escapeHtml(data.emoji||'')}</div>`);
+    extrasEl.innerHTML = parts.join('');
   }
   // score bars
   if (scoreBarsEl) {
@@ -119,10 +138,13 @@ function renderResult(data) {
     if (data.wordcloud_png_b64) {
       wordcloudImg.src = 'data:image/png;base64,' + data.wordcloud_png_b64;
       wordcloudWrap.style.display = '';
+      wordcloudImg.onload = () => adjustExpandedSectionHeight(wordcloudImg);
     } else {
       wordcloudWrap.style.display = 'none';
     }
   }
+  // final height adjustment after building all pieces
+  adjustExpandedSectionHeight(summaryEl);
 }
 
 analyzeBtn?.addEventListener('click', async () => {

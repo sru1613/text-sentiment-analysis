@@ -212,6 +212,25 @@ def load_current_user():
             g.accent_theme = 'blue'
     else:
         g.accent_theme = 'blue'
+    # Ensure background image and glass flags are always available to templates
+    try:
+        # default values
+        g.bg_image_enabled = True
+        g.noise_enabled = True
+        g.use_glass = True
+        if g.user_id:
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.row_factory = sqlite3.Row
+                cur = conn.execute("SELECT background_image_enabled, noise_enabled FROM user_settings WHERE user_id=?", (g.user_id,))
+                row = cur.fetchone()
+                if row:
+                    g.bg_image_enabled = bool(row['background_image_enabled'])
+                    g.noise_enabled = bool(row['noise_enabled'])
+    except Exception:
+        # fall back to defaults
+        g.bg_image_enabled = True
+        g.noise_enabled = True
+        g.use_glass = True
 
 
 # ---------- Core analysis ----------
@@ -356,6 +375,18 @@ def settings_page():
         'noise_enabled': bool(row['noise_enabled']) if row else True,
     }
     return render_template('settings.html', settings=settings)
+
+
+@app.route('/images/<path:filename>')
+@limiter.exempt
+def serve_image(filename: str):
+    """Serve images from the project-level images directory.
+
+    This allows CSS and templates to reference /images/<file> (e.g. hero background or test images).
+    The directory only contains static assets added to the repository.
+    """
+    images_dir = os.path.join(app.root_path, 'images')
+    return send_from_directory(images_dir, filename)
 
 
 @app.route('/analyze', methods=['POST'])

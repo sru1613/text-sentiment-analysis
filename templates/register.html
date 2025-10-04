@@ -2,7 +2,7 @@
 {% block title %}Register - Sentiment App{% endblock %}
 {% block content %}
   <h1>Register</h1>
-  <form method="post" class="section theme-teal" style="padding:16px; border-radius:14px">
+  <form method="post" class="section theme-teal" style="padding:16px; border-radius:14px" aria-describedby="registerHelp">
     <div style="margin-bottom:10px">
       <label>Email</label>
       <input type="email" name="email" required style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:rgba(0,0,0,0.05); color:inherit" />
@@ -11,6 +11,7 @@
       <label>Password</label>
       <input type="password" name="password" required style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:rgba(0,0,0,0.05); color:inherit" />
     </div>
+    <div id="registerHelp" style="font-size:12px; color:var(--muted); margin:4px 0 10px">Password should be at least 6 characters.</div>
     <button type="submit">Create account</button>
   </form>
 {% endblock %}

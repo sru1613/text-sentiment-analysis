@@ -29,16 +29,21 @@
   <div class="section theme-amber" aria-expanded="true" data-key="sec-result">
     <button class="section-header" type="button"><span class="icon" aria-hidden></span><h2>Result</h2><span class="chevron" aria-hidden>▾</span></button>
     <div class="section-content">
-      <section class="result">
-        <div id="summary" class="summary">No analysis yet</div>
-        <div id="scoreBars" class="score-bars" style="display:none; margin:14px 0 4px 0"></div>
-        <div id="keywordChips" class="chips" style="display:none; flex-wrap:wrap; gap:8px; margin-bottom:12px"></div>
-        <div class="chartWrap">
+      <section class="result-grid" aria-label="Analysis result layout">
+        <div class="panel-summary">
+          <div id="summary" class="summary">No analysis yet</div>
+          <div id="scoreBars" class="score-bars" style="display:none"></div>
+          <div id="keywordChips" class="chips" style="display:none; flex-wrap:wrap; gap:8px"></div>
+        </div>
+        <div class="chartWrap" aria-label="Score chart">
           <canvas id="scoresChart" width="400" height="200"></canvas>
         </div>
-        <div id="extras" class="summary" style="margin-top:10px"></div>
-        <div id="wordcloudWrap" style="margin-top:10px; display:none">
-          <img id="wordcloudImg" alt="Word Cloud" style="max-width:100%; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.2)" />
+        <div class="meta-panel">
+          <div id="extras" class="meta-block" aria-live="polite"></div>
+          <div id="wordcloudWrap" class="meta-block wordcloud" style="display:none" aria-label="Word Cloud">
+            <h3 class="meta-title">Word Cloud</h3>
+            <img id="wordcloudImg" alt="Word Cloud" />
+          </div>
         </div>
       </section>
     </div>
