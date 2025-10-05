@@ -1,27 +1,27 @@
 :root{
-	/* Softened dark palette (lighter background and cards) */
-	--bg:#17354a; /* lighter background */
-	--bg-alt:#1d4359; /* mid tone for gradients */
-	--card:#2a5a77; /* lighter card */
-	--card-alt:#316684; /* hover/secondary */
-	--muted:#c4d0dc; /* brighter muted text */
-	--text:#f5f9fc;
-	--accent1:#339ff2;
-	--accent2:#52d7c7;
-	--accent3:#ff945f;
-	--glass: rgba(255,255,255,0.07);
-	--glass-strong: rgba(255,255,255,0.16);
-	--border: rgba(255,255,255,0.20);
-	--ring: rgba(82,215,199,0.38);
+	/* Galaxy dark palette */
+	--bg:#05070c; /* near-black */
+	--bg-alt:#0d141f; /* subtle deep tone */
+	--card:#121c27; /* primary card */
+	--card-alt:#1b2733; /* hover/secondary card */
+	--muted:#9fb1c1; /* desaturated muted text */
+	--text:#f5f9fc; /* high contrast */
+	--accent1:#3d8bff; /* cool stellar blue */
+	--accent2:#32d1c1; /* teal nebula */
+	--accent3:#ff8650; /* warm flare */
+	--glass: rgba(255,255,255,0.05);
+	--glass-strong: rgba(255,255,255,0.12);
+	--border: rgba(255,255,255,0.16);
+	--ring: rgba(61,139,255,0.45);
 
-	/* Accent palette base (default = blue/teal) */
-	--accent-gradient: linear-gradient(92deg,var(--accent1),var(--accent2));
+	/* Accent gradient */
+	--accent-gradient: linear-gradient(95deg,var(--accent1),var(--accent2));
 
-	/* Section theme palettes */
-	--rose-bg:#23283d; --rose-card:#2c334d; --rose-text:#f4eaff; --rose-accent:#c98bff;
-	--amber-bg:#272f3d; --amber-card:#303a49; --amber-text:#ffe6be; --amber-accent:#ffbd63;
-	--teal-bg:#153842; --teal-card:#1c4752; --teal-text:#c9fdf8; --teal-accent:#37d6d2;
-	--indigo-bg:#212f4b; --indigo-card:#28385c; --indigo-text:#dae4ff; --indigo-accent:#7aa2ff;
+	/* Section theme palettes tuned to dark base */
+	--rose-bg:#1a1d2c; --rose-card:#262b3d; --rose-text:#f2eaff; --rose-accent:#c98bff;
+	--amber-bg:#201f1a; --amber-card:#2b2923; --amber-text:#ffe6be; --amber-accent:#ffbd63;
+	--teal-bg:#081e24; --teal-card:#0f2b33; --teal-text:#c9fdf8; --teal-accent:#37d6d2;
+	--indigo-bg:#141c2b; --indigo-card:#1e2a3c; --indigo-text:#dae4ff; --indigo-accent:#7aa2ff;
 }
 
 /* Accent presets applied via data-accent on html */
@@ -43,12 +43,18 @@ body{
 	font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
 	margin:0; padding:36px;
 	background:
-		linear-gradient(140deg, var(--bg) 0%, var(--bg-alt) 45%, #102433 100%);
+		linear-gradient(160deg, var(--bg) 0%, var(--bg-alt) 55%, #050a12 100%),
+		radial-gradient(1200px 600px at 60% 85%, rgba(61,139,255,0.08), transparent 70%),
+		radial-gradient(900px 520px at 15% 25%, rgba(50,209,193,0.06), transparent 75%);
+	background-color:var(--bg);
 	color: var(--text);
 	min-height:100vh;
 	position:relative;
 	overflow-x:hidden;
 }
+/* Galaxy background container sits behind all other content */
+#galaxy-bg{ z-index:0 !important; }
+main, .float-chat, .skip-link, .accent-palette, .nav, .glass-wrap{ position:relative; z-index:2 }
 
 /* Subtle decorative radial lights behind content */
 body::before, body::after{
@@ -56,11 +62,11 @@ body::before, body::after{
 }
 body::before{
 	background:
-		linear-gradient(140deg, rgba(15,37,54,0.60), rgba(15,37,54,0.35)),
-		radial-gradient(900px 600px at 12% 25%, rgba(63,180,255,0.20), transparent 70%),
-		radial-gradient(700px 480px at 85% 78%, rgba(109,220,207,0.18), transparent 72%),
-		radial-gradient(560px 400px at 78% 18%, rgba(255,139,94,0.16), transparent 74%);
-	filter: saturate(115%) brightness(1.08);
+		linear-gradient(140deg, rgba(5,10,18,0.75), rgba(10,20,32,0.35)),
+		radial-gradient(880px 620px at 14% 28%, rgba(61,139,255,0.18), transparent 70%),
+		radial-gradient(760px 540px at 82% 72%, rgba(50,209,193,0.16), transparent 72%),
+		radial-gradient(600px 420px at 78% 18%, rgba(255,134,80,0.14), transparent 74%);
+	filter: saturate(115%) brightness(1.02);
 }
 body::after{
 	background: repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0 2px, transparent 2px 6px);
@@ -74,11 +80,9 @@ body[data-bgimg='0']::before{ background:
 }
 
 /* When background images are enabled, show the hero image with a subtle overlay */
+/* Removed external hero background image – keep only overlay gradient when bgimg flag is on */
 body[data-bgimg='1']::before{
-	background:
-		linear-gradient(180deg, rgba(10,14,20,0.36), rgba(10,14,20,0.26)),
-		url("/images/hero-vecteezy.jpg") center/cover no-repeat;
-	background-size: cover;
+	background: linear-gradient(180deg, rgba(10,14,20,0.36), rgba(10,14,20,0.26));
 	filter: saturate(110%) brightness(0.9);
 }
 
@@ -439,6 +443,8 @@ footer{ margin-top:18px; color:var(--muted); font-size:13px; min-height:28px; pa
 	0%{ transform: translateX(-60%) }
 	100%{ transform: translateX(120%) }
 }
+/* Ensure Settings link hidden client-side when not authenticated (defense against stale template cache) */
+html[data-auth='0'] .nav a[href$='/ui/settings']{ display:none !important; }
 .skip-link:focus{ left:16px !important; top:16px !important; outline:2px solid #fff; outline-offset:3px }
 .float-chat{ position: fixed; right: 18px; bottom: 18px; z-index: 9999 }
 .float-chat .chat-fab{ width:56px; height:56px; border-radius:999px; display:flex; align-items:center; justify-content:center; text-decoration:none; background:var(--accent-gradient); color:#0d1b26; font-size:22px; box-shadow:0 6px 20px rgba(51,159,242,0.25); border:none }
@@ -456,3 +462,8 @@ footer{ margin-top:18px; color:var(--muted); font-size:13px; min-height:28px; pa
 .accent-swatch{ transition: transform .35s cubic-bezier(.4,0,.2,1), box-shadow .35s }
 .accent-swatch:hover{ transform: translateY(-4px) scale(1.15) rotate(-3deg); box-shadow:0 10px 26px -6px rgba(0,0,0,0.55), 0 4px 10px rgba(0,0,0,0.35) }
 .accent-swatch:active{ transform: translateY(-1px) scale(.97) }
+/* Video background (replaces WebGL galaxy) */
+.bg-video{position:fixed; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; pointer-events:none; filter:brightness(.55) saturate(115%);}
+body.has-video-bg{background:#000;}
+body.has-video-bg::before, body.has-video-bg::after{display:none !important}
+main#app-main{position:relative; z-index:2}

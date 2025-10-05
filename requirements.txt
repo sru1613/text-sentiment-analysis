@@ -7,3 +7,6 @@ langdetect>=1.0.9
 yake>=0.4.8
 wordcloud>=1.9.3
 reportlab>=4.0.9
+PyPDF2>=3.0.0
+python-docx>=1.1.0
+openpyxl>=3.1.0

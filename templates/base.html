@@ -7,9 +7,13 @@
   <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAAAASUVORK5CYII=">
   <link rel="stylesheet" href="/static/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  {# Galaxy React removed. #}
   {% block head %}{% endblock %}
 </head>
-<body data-bgimg="{% if g.bg_image_enabled %}1{% else %}0{% endif %}" data-noise="{% if g.noise_enabled %}1{% else %}0{% endif %}">
+<body class="has-video-bg" data-bgimg="{% if g.bg_image_enabled %}1{% else %}0{% endif %}" data-noise="{% if g.noise_enabled %}1{% else %}0{% endif %}">
+  <video id="bg-video" class="bg-video" autoplay muted playsinline loop preload="auto" aria-hidden="true">
+    <source src="{{ url_for('serve_bg_video', filename='From KlickPin CF Galaxy loop [Video] _ Space telescope Hubble space telescope Space and astronomy.mp4') }}" type="video/mp4" />
+  </video>
   <a href="#app-main" class="skip-link" style="position:absolute;left:-999px;top:-999px;background:var(--accent-gradient);color:#0d1b26;padding:8px 12px;border-radius:8px;font-weight:600;z-index:10000">Skip to content</a>
   <main id="app-main" role="main" tabindex="-1">
     <div class="glass-wrap">
@@ -20,7 +24,9 @@
         <a href="{{ url_for('batch_page') }}" class="{% if request.path.startswith('/ui/batch') %}active{% endif %}">Batch</a>
         <a href="{{ url_for('history_page') }}" class="{% if request.path.startswith('/ui/history') %}active{% endif %}">History</a>
         <a href="{{ url_for('chat_page') }}" class="{% if request.path.startswith('/ui/chat') %}active{% endif %}">Chat</a>
-        <a href="{{ url_for('settings_page') }}" class="{% if request.path.startswith('/ui/settings') %}active{% endif %}">Settings</a>
+  {% if g.user_id %}
+  <a href="{{ url_for('settings_page') }}" class="{% if request.path.startswith('/ui/settings') %}active{% endif %}">Settings</a>
+  {% endif %}
       </div>
       <div style="display:flex; align-items:center; gap:8px">
         <div class="accent-palette" title="Accent theme">

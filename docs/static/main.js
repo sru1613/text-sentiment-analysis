@@ -31,11 +31,21 @@ function renderResult(data) {
       datasets: [{
         label: 'Scores',
         data: values,
-        backgroundColor: ['#4caf50','#9e9e9e','#f44336']
+        backgroundColor: ['#4caf50','#9e9e9e','#f44336'],
+        borderColor: ['#4caf50','#9e9e9e','#f44336'],
+        borderWidth: 1
       }]
     },
     options: {
-      scales: { y: { beginAtZero: true, max: 1 } }
+      plugins: {
+        legend: { labels: { color: '#ffffff', font: { weight: '600' } } },
+        title: { display: false },
+        tooltip: { titleColor: '#fff', bodyColor: '#fff', backgroundColor: 'rgba(0,0,0,0.7)' }
+      },
+      scales: {
+        x: { ticks: { color: '#ffffff', font: { weight: '600' } }, grid: { color: 'rgba(255,255,255,0.15)' } },
+        y: { beginAtZero: true, max: 1, ticks: { color: '#ffffff', font: { weight: '600' } }, grid: { color: 'rgba(255,255,255,0.15)' } }
+      }
     }
   });
 }

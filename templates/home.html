@@ -18,15 +18,12 @@
         </div>
         <p>Analyze text and files for sentiment, batch-process CSVs, chat with a supportive bot, and save your history by creating an account.</p>
         <div class="controls" style="margin-top:16px; flex-wrap:wrap">
-          <a href="{{ url_for('analyze_page') }}" class="control-btn">Start Analyzing</a>
-          <a href="{{ url_for('batch_page') }}" class="control-btn ghost">Batch (CSV)</a>
+          <a href="{{ url_for('analyze_page') }}" class="control-btn">Start New Analysis</a>
+          <a href="{{ url_for('batch_page') }}" class="control-btn ghost">Upload Batch CSV</a>
           {% if g.user_id %}
-          <a href="{{ url_for('history_page') }}" class="control-btn ghost">Your History</a>
-          {% else %}
-          <a href="{{ url_for('login') }}" class="control-btn ghost">Login</a>
-          <a href="{{ url_for('register') }}" class="control-btn ghost">Register</a>
+            <a href="{{ url_for('history_page') }}" class="control-btn ghost">Your History</a>
           {% endif %}
-          <a href="{{ url_for('chat_page') }}" class="control-btn ghost">Open Chat</a>
+          <a href="{{ url_for('chat_page') }}" class="control-btn ghost">Chat with Assistant</a>
         </div>
       </div>
     </div>
