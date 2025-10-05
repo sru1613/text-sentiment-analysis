@@ -17,6 +17,24 @@ const wordcloudImg = document.getElementById('wordcloudImg');
 const exportPdfBtn = document.getElementById('exportPdfBtn');
 const scoreBarsEl = document.getElementById('scoreBars');
 const keywordChipsEl = document.getElementById('keywordChips');
+const csvColumnInput = document.getElementById('csvColumnInput');
+const csvDetectLang = document.getElementById('csvDetectLang');
+const csvErrorBox = document.getElementById('csvErrorBox');
+const clearCsvErrorBtn = document.getElementById('clearCsvErrorBtn');
+
+// Language code to full name map (extendable)
+const LANGUAGE_NAMES = {
+  en: 'English',
+  es: 'Spanish',
+  fr: 'French',
+  de: 'German',
+  it: 'Italian',
+  pt: 'Portuguese',
+  hi: 'Hindi',
+  ar: 'Arabic',
+  zh: 'Chinese',
+  ja: 'Japanese'
+};
 
 // Utility: adjust parent section content height after dynamic injections so nothing gets cut
 function adjustExpandedSectionHeight(node){
@@ -83,24 +101,46 @@ function renderResult(data) {
   if (ctx) {
     if (chart) chart.destroy();
     chart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: ['Positive','Neutral','Negative'],
-      datasets: [{
-        label: 'Scores',
-        data: values,
-        backgroundColor: ['#4caf50','#9e9e9e','#f44336']
-      }]
-    },
-    options: {
-      scales: { y: { beginAtZero: true, max: 1 } }
-    }
+      type: 'bar',
+      data: {
+        labels: ['Positive','Neutral','Negative'],
+        datasets: [{
+          label: 'Scores',
+          data: values,
+          backgroundColor: ['#4caf50','#9e9e9e','#f44336'],
+          borderColor: ['#4caf50','#9e9e9e','#f44336'],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { labels: { color: '#ffffff', font: { weight: '600' } } },
+          title: { display: false },
+          tooltip: { titleColor: '#fff', bodyColor: '#fff', backgroundColor: 'rgba(0,0,0,0.7)' }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#ffffff', font: { weight: '600' } },
+            grid: { color: 'rgba(255,255,255,0.15)' }
+          },
+            y: {
+              beginAtZero: true,
+              max: 1,
+              ticks: { color: '#ffffff', font: { weight: '600' } },
+              grid: { color: 'rgba(255,255,255,0.15)' }
+            }
+        }
+      }
     });
   }
 
   if (extrasEl) {
     const parts = [];
-    if (data.lang) parts.push(`<div><strong>Language:</strong> ${escapeHtml(data.lang)}</div>`);
+    if (data.lang){
+      const code = String(data.lang).toLowerCase();
+      const full = LANGUAGE_NAMES[code] || code;
+      parts.push(`<div><strong>Language:</strong> ${escapeHtml(full)} <span style="opacity:.65;font-size:12px">(${escapeHtml(code)})</span></div>`);
+    }
     if (Array.isArray(data.keywords) && data.keywords.length) {
       parts.push(`<div><strong>Keywords:</strong> ${data.keywords.slice(0,8).map(k=>`<span class="kw">${escapeHtml(k)}</span>`).join(', ')}</div>`);
     }
@@ -192,50 +232,74 @@ analyzeFileBtn?.addEventListener('click', async () => {
   }
 });
 
+if (clearCsvErrorBtn) {
+  clearCsvErrorBtn.addEventListener('click', () => {
+    if (csvErrorBox){ csvErrorBox.style.display='none'; csvErrorBox.textContent=''; }
+    clearCsvErrorBtn.style.display='none';
+  });
+}
+
 analyzeCsvBtn?.addEventListener('click', async () => {
   const file = csvInput.files?.[0];
-  if (!file) { alert('Please select a .csv file first'); return; }
+  if (!file) { alert('Please select a .csv or .xlsx file first'); return; }
   const fd = new FormData();
   fd.append('file', file);
+  const overrideCol = (csvColumnInput?.value || '').trim();
+  const detectLang = csvDetectLang?.checked ? '1' : '0';
   csvSummary.textContent = 'Uploading and analyzing...';
+  if (csvErrorBox){ csvErrorBox.style.display='none'; csvErrorBox.textContent=''; }
+  clearCsvErrorBtn && (clearCsvErrorBtn.style.display='none');
   downloadCsvBtn.disabled = true;
   const model = (modelSelect?.value || 'vader');
+  const params = new URLSearchParams({ model, detect_lang: detectLang });
+  if (overrideCol) params.set('col', overrideCol);
   try {
-    const resp = await fetch(analyzeCsvUrl + `?model=${encodeURIComponent(model)}`, { method: 'POST', body: fd });
+    const resp = await fetch(analyzeCsvUrl + `?${params.toString()}`, { method: 'POST', body: fd });
     const contentType = resp.headers.get('content-type') || '';
     if (!resp.ok) {
-      const msg = await resp.text();
-      csvSummary.textContent = `Error: ${resp.status} ${resp.statusText} - ${msg || 'no details'}`;
+      let payload = null; let raw = await resp.text();
+      try { payload = raw ? JSON.parse(raw) : null; } catch { /* ignore */ }
+      const msg = payload?.error || raw || `HTTP ${resp.status}`;
+      csvSummary.textContent = 'Failed.';
+      if (csvErrorBox){
+        const parts = [];
+        parts.push(`<strong>Error:</strong> ${escapeHtml(msg)}`);
+        if (payload?.expected_any_of){
+          parts.push(`<div><strong>Expected column names:</strong> ${payload.expected_any_of.map(escapeHtml).join(', ')}</div>`);
+        }
+        if (payload?.available){
+          parts.push(`<div><strong>Detected headers:</strong> ${payload.available.map(escapeHtml).join(', ')}</div>`);
+        }
+        if (payload?.hint){ parts.push(`<div><em>${escapeHtml(payload.hint)}</em></div>`); }
+        if (payload?.detail){ parts.push(`<div>${escapeHtml(payload.detail)}</div>`); }
+        if (payload?.suggestions){
+          parts.push(`<ul style="margin:6px 0 0 16px; padding:0;">${payload.suggestions.map(s=>`<li>${escapeHtml(s)}</li>`).join('')}</ul>`);
+        }
+        csvErrorBox.innerHTML = parts.join('');
+        csvErrorBox.style.display='block';
+        clearCsvErrorBtn && (clearCsvErrorBtn.style.display='inline-block');
+      }
       return;
     }
     if (contentType.includes('application/json')) {
       const data = await resp.json();
-      csvSummary.textContent = `Analyzed ${data.count} rows (showing up to 50 in API response).`;
-      // Enable downloadable CSV
+      csvSummary.textContent = `Analyzed ${data.count} rows (showing up to 50 in API response). Column: ${escapeHtml(data.column_used || '-')}${data.detect_lang ? ' | Lang detected' : ''}${data.heuristic_header_as_row ? ' | Heuristic header-as-row' : ''}`;
       downloadCsvBtn.disabled = false;
       downloadCsvBtn.onclick = async () => {
-        // request CSV format
-        const csvResp = await fetch(analyzeCsvUrl + `?format=csv&model=${encodeURIComponent(model)}`, { method: 'POST', body: fd });
+        const csvResp = await fetch(analyzeCsvUrl + `?format=csv&${params.toString()}`, { method: 'POST', body: fd });
         const blob = await csvResp.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = 'analysis_results.csv';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+        a.href = url; a.download = 'analysis_results.csv';
+        document.body.appendChild(a); a.click(); a.remove();
         URL.revokeObjectURL(url);
       };
     } else if (contentType.includes('text/csv')) {
-      // direct CSV
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = 'analysis_results.csv';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      a.href = url; a.download = 'analysis_results.csv';
+      document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
       csvSummary.textContent = 'CSV downloaded.';
     } else {

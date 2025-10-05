@@ -9,18 +9,28 @@
     <button class="section-header" type="button"><span class="icon" aria-hidden></span><h2>CSV Batch Analysis</h2><span class="chevron" aria-hidden>▾</span></button>
     <div class="section-content">
       <section class="batch">
-        <p>Upload a CSV file that has a column named <strong>text</strong>.</p>
+        <p>Upload a CSV (or XLSX) file that has a column named <strong>text</strong> (or synonyms: message, content, body, comment, review, sentence). You can override the column or enable per-row language detection below.</p>
         <div id="dropZone" class="drop-zone" tabindex="0" aria-label="Drag and drop CSV here or click to select">
-          <input type="file" id="csvInput" accept=".csv" style="display:none" />
+          <input type="file" id="csvInput" accept=".csv,.xlsx" style="display:none" />
           <div class="dz-instructions">
-            <strong>Drag & Drop</strong> your CSV here<br />or <span class="dz-browse">browse</span>
+            <strong>Drag & Drop</strong> your CSV/XLSX here<br />or <span class="dz-browse">browse</span>
           </div>
-          <div class="dz-file" id="dzFileName" style="display:none"></div>
+            <div class="dz-file" id="dzFileName" style="display:none"></div>
+        </div>
+        <div class="csv-options" style="margin-top:12px; display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end">
+          <label style="display:flex; flex-direction:column; font-size:14px">Override Column
+            <input id="csvColumnInput" type="text" placeholder="e.g. feedback" style="padding:6px 8px; min-width:180px;" />
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
+            <input id="csvDetectLang" type="checkbox" /> Detect language per row
+          </label>
+          <button id="clearCsvErrorBtn" type="button" style="display:none;" class="ghost">Clear Error</button>
         </div>
         <div class="controls" style="margin-top:14px">
           <button id="analyzeCsvBtn">Analyze CSV</button>
           <button id="downloadCsvBtn" disabled>Download Results (CSV)</button>
         </div>
+        <div id="csvErrorBox" style="display:none; margin-top:14px; padding:12px 14px; border:1px solid #d32f2f; background:rgba(244,67,54,0.12); color:#ffcdd2; border-radius:6px; font-size:14px; line-height:1.35" role="alert" aria-live="polite"></div>
         <div id="csvSummary" class="summary" style="margin-top:12px">No CSV analyzed yet</div>
       </section>
     </div>
