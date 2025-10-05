@@ -39,6 +39,57 @@ CORS(app)
 # Rate limiting (per client IP)
 limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["10 per minute", "200 per day"]) 
 
+# Supported language codes we explicitly surface (keep in sync with frontend mapping)
+SUPPORTED_LANGS = {"en","es","fr","de","it","pt","hi","ar","zh","ja"}
+
+# --- Galaxy React removed for performance. Provide direct video background route. ---
+@app.route('/bgvideo/<path:filename>')
+def serve_bg_video(filename: str):
+    video_dir = os.path.join(app.root_path, 'images')
+    resp = send_from_directory(video_dir, filename, as_attachment=False)
+    # Encourage client caching (1 week)
+    try:
+        resp.cache_control.public = True
+        resp.cache_control.max_age = 604800
+    except Exception:
+        pass
+    return resp
+
+def _detect_language(text: str) -> str:
+    """Best-effort language detection with heuristics to reduce false positives on very short English texts.
+
+    langdetect can misclassify short, high‑frequency English phrases (e.g., 'i am happy') as Scandinavian languages.
+    Heuristics:
+      - For very short ASCII texts (<25 chars or <=4 tokens) containing common English markers, default to 'en'.
+      - If detected language is in a set of common false positives (sv, no, da) for short ASCII texts with English markers, coerce to 'en'.
+      - If detection yields a code outside our supported set and text is ASCII, fallback to 'en'.
+    """
+    if not text:
+        return 'en'
+    cleaned = (text or '').strip()
+    ascii_only = all(ord(c) < 128 for c in cleaned)
+    tokens = [t.lower() for t in cleaned.split() if t]
+    length = len(cleaned)
+    english_markers = {"i","am","the","and","is","are","was","were","this","that","it","happy","good","bad","love","very","not"}
+    token_set = set(tokens)
+    short_en_like = (length < 25 or len(tokens) <= 4) and ascii_only and bool(english_markers & token_set)
+    if short_en_like:
+        return 'en'
+    try:
+        detected = lang_detect(cleaned).lower()
+        if detected in {"sv","no","da"} and ascii_only and (english_markers & token_set):
+            return 'en'
+        # Normalize Chinese variants
+        if detected.startswith('zh'):
+            detected = 'zh'
+        if detected not in SUPPORTED_LANGS:
+            # If outside our announced support set but ASCII only, likely English fallback.
+            if ascii_only:
+                return 'en'
+        return detected
+    except Exception:
+        return 'en'
+
 
 def _pkg_version(name: str) -> str:
     try:
@@ -267,10 +318,8 @@ def analyze_text(text: str, model: str = 'vader') -> dict:
     if not text:
         return {"label": "Neutral", "emoji": "\U0001F610", "scores": {"pos": 0.0, "neu": 0.0, "neg": 0.0, "compound": 0.0}}
     # Language detection (best effort)
-    try:
-        lang = lang_detect(text)
-    except Exception:
-        lang = 'en'
+    # Improved language detection with heuristics
+    lang = _detect_language(text)
 
     if model == 'rule':
         # Simple demo rule-based: keywords tilt sentiment
@@ -441,7 +490,7 @@ def analyze():
 @limiter.limit("10/minute")
 def analyze_file():
     """
-    Analyze sentiment of an uploaded text file
+    Analyze sentiment of an uploaded file (.txt, .pdf, .docx)
     ---
     consumes:
       - multipart/form-data
@@ -450,7 +499,12 @@ def analyze_file():
         name: file
         type: file
         required: true
-        description: Plain text file (.txt)
+        description: Text / PDF / DOCX file
+      - in: query
+        name: model
+        type: string
+        required: false
+        description: Sentiment model (vader)
     responses:
       200:
         description: Analysis result
@@ -458,19 +512,74 @@ def analyze_file():
     if 'file' not in request.files:
         return jsonify({'error': 'no file uploaded'}), 400
     f = request.files['file']
+    filename = getattr(f, 'filename', '') or ''
+    ext = filename.lower().rsplit('.',1)[-1] if '.' in filename else ''
     try:
         raw = f.read()
-        try:
-            text = raw.decode('utf-8')
-        except Exception:
-            text = raw.decode('latin-1', errors='ignore')
     except Exception:
         return jsonify({'error': 'could not read file'}), 400
+
+    text = ''
+    # Helper decoders
+    def _decode_bytes(b: bytes) -> str:
+        try:
+            return b.decode('utf-8')
+        except Exception:
+            try:
+                return b.decode('latin-1', errors='ignore')
+            except Exception:
+                return ''
+
+    if ext in {'txt','csv','log'}:
+        text = _decode_bytes(raw)
+    elif ext == 'pdf':
+        try:
+            from PyPDF2 import PdfReader  # type: ignore
+            reader = PdfReader(io.BytesIO(raw))
+            parts = []
+            for page in reader.pages:
+                try:
+                    parts.append(page.extract_text() or '')
+                except Exception:
+                    continue
+            text = '\n'.join(parts)
+        except Exception:
+            return jsonify({'error': 'failed to extract text from PDF'}), 400
+    elif ext == 'docx':
+        try:
+            import docx  # type: ignore
+            doc = docx.Document(io.BytesIO(raw))
+            text = '\n'.join(p.text for p in doc.paragraphs if p.text)
+        except Exception:
+            return jsonify({'error': 'failed to extract text from DOCX'}), 400
+    else:
+        # Fallback: attempt plain decode anyway
+        text = _decode_bytes(raw)
+        if not text:
+            return jsonify({'error': f'unsupported file type: {ext or "unknown"}'}), 400
+
+    if not text.strip():
+        return jsonify({
+            'error': 'file contained no readable text',
+            'detail': 'The uploaded file was parsed but produced no extractable text.',
+            'possible_causes': [
+                'Scanned or image-only PDF (needs OCR)',
+                'Password-protected / corrupted document',
+                'Unsupported encoding or binary data',
+                'DOCX with only embedded objects / no paragraphs',
+                'Truly blank file'
+            ],
+            'suggestions': [
+                'If PDF is scanned use OCR (e.g., Tesseract) first',
+                'Open the file locally and copy/paste to verify text exists',
+                'Try saving as plain UTF-8 .txt and re-upload'
+            ]
+        }), 400
 
     model = _resolve_model(request.args.get('model'))
     result = analyze_text(text, model=model)
     # add a summary length
-    result['meta'] = {'chars': len(text)}
+    result['meta'] = {'chars': len(text), 'filename': filename, 'ext': ext}
     try:
         insert_analysis("file", text, result, filename=getattr(f, 'filename', None), user_id=current_user_id())
     except Exception:
@@ -827,28 +936,133 @@ def chat():
 @limiter.limit("5/minute")
 def analyze_csv():
     """
-    Analyze a CSV file with a 'text' column. Returns JSON array or CSV if `?format=csv`.
+    Analyze a CSV file. By default looks for a 'text' column. You can override with ?col=column_name.
+    If 'text' is missing, will try common synonyms: message, content, body, comment.
+    Supports CSV or XLSX (first worksheet). Add ?detect_lang=1 to include a 'lang' column (per-row language).
+    Returns JSON preview (first 50) or full CSV if `?format=csv`.
     """
     if 'file' not in request.files:
         return jsonify({'error': 'no file uploaded'}), 400
     f = request.files['file']
+    filename = getattr(f, 'filename', '') or ''
+    ext = filename.lower().rsplit('.',1)[-1] if '.' in filename else ''
     try:
         raw = f.read()
-        try:
-            content = raw.decode('utf-8')
-        except Exception:
-            content = raw.decode('latin-1', errors='ignore')
     except Exception:
         return jsonify({'error': 'could not read file'}), 400
 
-    reader = csv.DictReader(io.StringIO(content))
-    if 'text' not in (reader.fieldnames or []):
-        return jsonify({'error': "CSV must have a 'text' column"}), 400
+    # Prepare row iterator (list of dicts) and fieldnames
+    excel_rows = None
+    fieldnames = []
+    reader = None  # type: ignore
+    if ext in {'xlsx','xls'}:
+        try:
+            from openpyxl import load_workbook  # type: ignore
+        except Exception:
+            return jsonify({'error': 'XLSX support not installed (openpyxl missing)'}), 400
+        try:
+            wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+            ws = wb.active
+            header = None
+            excel_rows = []
+            if ws is None:
+                return jsonify({'error': 'empty workbook'}), 400
+            for row in ws.iter_rows(values_only=True):
+                if header is None:
+                    header = [ (str(c).strip() if c is not None else '') for c in row ]
+                    fieldnames = header
+                    continue
+                d = {}
+                for idx, val in enumerate(row):
+                    key = header[idx] if idx < len(header) else f'col_{idx}'
+                    if key:
+                        d[key] = '' if val is None else str(val)
+                if any(v for v in d.values()):  # skip completely empty rows
+                    excel_rows.append(d)
+        except Exception:
+            return jsonify({'error': 'failed to parse XLSX workbook'}), 400
+    else:
+        # Treat as CSV-like text
+        try:
+            try:
+                content = raw.decode('utf-8')
+            except Exception:
+                content = raw.decode('latin-1', errors='ignore')
+        except Exception:
+            return jsonify({'error': 'could not decode file'}), 400
+        reader = csv.DictReader(io.StringIO(content))
+        fieldnames = reader.fieldnames or []
+
+    target_col = (request.args.get('col') or 'text').strip()
+    synonyms = ['text','message','content','body','comment','review','sentence']
+    chosen = None
+    # Direct match (case-insensitive)
+    for name in fieldnames:
+        if name.lower() == target_col.lower():
+            chosen = name; break
+    if not chosen:
+        for syn in synonyms:
+            for name in fieldnames:
+                if name.lower() == syn:
+                    chosen = name; break
+            if chosen: break
+    if not chosen:
+        # Heuristic fallback: single column that looks like a sentence may actually be data not header
+        def _looks_like_sentence(s: str) -> bool:
+            s2 = s.strip()
+            if len(s2) < 5: return False
+            if s2.lower() in {'text','message','content','body','comment','review','sentence'}: return False
+            alpha = sum(c.isalpha() for c in s2)
+            if alpha < 3: return False
+            has_space = ' ' in s2
+            sentiment_keywords = {'happy','sad','angry','love','hate','good','bad','excellent','terrible','great','awful','am','not','very','emotional'}
+            kw_hit = any(w in s2.lower() for w in sentiment_keywords)
+            end_punct = s2.endswith(('.', '!', '?')) if isinstance(s2, str) else False
+            return has_space and (kw_hit or end_punct or len(s2) > 25)
+
+        heuristic_rows = []
+        if len(fieldnames) == 1:
+            header_candidate = fieldnames[0]
+            if _looks_like_sentence(header_candidate):
+                heuristic_rows.append({'text': header_candidate})
+        if heuristic_rows:
+            chosen = 'text'
+            rows = []
+            model = _resolve_model(request.args.get('model'))
+            detect_lang = (request.args.get('detect_lang','0').lower() in {'1','true','yes','on'})
+            for row in heuristic_rows:
+                text_val = row['text']
+                res = analyze_text(text_val, model=model)
+                out = {
+                    **row,
+                    'label': res['label'],
+                    'pos': res['scores']['pos'],
+                    'neu': res['scores']['neu'],
+                    'neg': res['scores']['neg'],
+                    'compound': res['scores']['compound'],
+                }
+                if detect_lang:
+                    try:
+                        out['lang'] = _detect_language(text_val)
+                    except Exception:
+                        out['lang'] = 'unknown'
+                rows.append(out)
+            return jsonify({'count': len(rows), 'results': rows, 'column_used': chosen, 'heuristic_header_as_row': True, 'detect_lang': detect_lang, 'ext': ext or 'csv'}), 200
+
+        return jsonify({
+            'error': "File missing a suitable text column",
+            'expected_any_of': synonyms,
+            'available': fieldnames,
+            'hint': 'Add a header row with one of the expected names or use ?col=YourColumnName'
+        }), 400
 
     rows = []
     model = _resolve_model(request.args.get('model'))
-    for row in reader:
-        text = row.get('text', '') or ''
+    detect_lang = (request.args.get('detect_lang','0').lower() in {'1','true','yes','on'})
+    # Iterate rows source
+    row_iter = excel_rows if excel_rows is not None else (reader or [])
+    for row in row_iter:
+        text = row.get(chosen, '') or ''
         res = analyze_text(text, model=model)
         out = {
             **row,
@@ -858,6 +1072,11 @@ def analyze_csv():
             'neg': res['scores']['neg'],
             'compound': res['scores']['compound'],
         }
+        if detect_lang:
+            try:
+                out['lang'] = _detect_language(text)
+            except Exception:
+                out['lang'] = 'unknown'
         rows.append(out)
         try:
             insert_analysis("csv", text, res, filename=getattr(f, 'filename', None), user_id=current_user_id())
@@ -867,14 +1086,16 @@ def analyze_csv():
     if (request.args.get('format') or '').lower() == 'csv':
         output = io.StringIO()
         if rows:
-            fieldnames = list(rows[0].keys())
+            out_fields = list(rows[0].keys())
         else:
-            base_fields = list(reader.fieldnames or [])
+            base_fields = list(fieldnames)
             for extra in ['label','pos','neu','neg','compound']:
                 if extra not in base_fields:
                     base_fields.append(extra)
-            fieldnames = base_fields
-        writer = csv.DictWriter(output, fieldnames=fieldnames)
+            if detect_lang and 'lang' not in base_fields:
+                base_fields.append('lang')
+            out_fields = base_fields
+        writer = csv.DictWriter(output, fieldnames=out_fields)
         writer.writeheader()
         for r in rows:
             writer.writerow(r)
@@ -883,7 +1104,7 @@ def analyze_csv():
         resp.headers['Content-Disposition'] = 'attachment; filename="analysis_results.csv"'
         return resp
 
-    return jsonify({'count': len(rows), 'results': rows[:50]})  # return preview (up to 50)
+    return jsonify({'count': len(rows), 'results': rows[:50], 'column_used': chosen, 'detect_lang': detect_lang, 'ext': ext or 'csv'})  # preview
 
 
 @app.route('/history', methods=['GET'])
