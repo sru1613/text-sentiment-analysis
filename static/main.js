@@ -90,7 +90,7 @@ function renderResult(data) {
   const scores = data.scores || {pos:0,neu:0,neg:0,compound:0};
   summaryEl.innerHTML = '';
     const lbl = document.createElement('div'); lbl.className = 'label'; lbl.textContent = label + ' ' + emoji;
-    const scr = document.createElement('div'); scr.className = 'scores';
+    const scr = document.createElement('div'); scr.className = 'scores';   scr.style.color = 'aliceblue';
     scr.textContent = `Positive: ${fmtNum(scores.pos)} | Neutral: ${fmtNum(scores.neu)} | Negative: ${fmtNum(scores.neg)} | Compound: ${fmtNum(scores.compound)}`;
     summaryEl.appendChild(lbl); summaryEl.appendChild(scr);
   summaryEl.setAttribute('data-sentiment', label);
@@ -109,25 +109,25 @@ function renderResult(data) {
           data: values,
           backgroundColor: ['#4caf50','#9e9e9e','#f44336'],
           borderColor: ['#4caf50','#9e9e9e','#f44336'],
-          borderWidth: 1
+          borderWidth: 1,
         }]
       },
       options: {
         plugins: {
           legend: { labels: { color: '#ffffff', font: { weight: '600' } } },
           title: { display: false },
-          tooltip: { titleColor: '#fff', bodyColor: '#fff', backgroundColor: 'rgba(0,0,0,0.7)' }
+          tooltip: { titleColor: '#fff', bodyColor: '#fff',color: '#ffffff', backgroundColor: 'rgba(0,0,0,0.7)' }
         },
         scales: {
           x: {
             ticks: { color: '#ffffff', font: { weight: '600' } },
-            grid: { color: 'rgba(255,255,255,0.15)' }
+            grid: { color: '#faebebf1' }
           },
             y: {
               beginAtZero: true,
               max: 1,
               ticks: { color: '#ffffff', font: { weight: '600' } },
-              grid: { color: 'rgba(255,255,255,0.15)' }
+              grid: { color: '#ffffff' }
             }
         }
       }
@@ -744,13 +744,13 @@ window.addEventListener('load', setupSectionToggles);
       const delayMs = Math.min(2500, Math.max(250, Math.round(base * toneFactor)));
       setTimeout(()=>{
         clearTyping(typingEl);
-        (window.__chatAppend ? window.__chatAppend('Bot', `${data.reply}${emoji}`, data.sentiment?.scores, { timestamp: new Date(), tone: respTone }) : (list.textContent += `\nBot: ${data.reply}${emoji}`));
+        (window.__chatAppend ? window.__chatAppend('Bot', `${data.reply}${emoji}`, data.sentiment?.scores,{style: "color:black"}, { timestamp: new Date(), tone: respTone }) : (list.textContent += `\nBot: ${data.reply}${emoji}`));
         if (!window.__chatAppend) adjustSectionHeightFor(list);
       }, delayMs);
       if (!window.__chatAppend) adjustSectionHeightFor(list);
     } catch(e){
       clearTyping(typingEl);
-      (window.__chatAppend ? window.__chatAppend('Bot', 'Network error', null, { timestamp: new Date() }) : (list.textContent += `\nBot: Network error`));
+      (window.__chatAppend ? window.__chatAppend('Bot', 'Network error', {style: "color:black"}, null, { timestamp: new Date() }) : (list.textContent += `\nBot: Network error`));
       if (!window.__chatAppend) adjustSectionHeightFor(list);
     }
   }

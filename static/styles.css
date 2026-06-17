@@ -1,9 +1,9 @@
 :root{
 	/* Galaxy dark palette */
-	--bg:#05070c; /* near-black */
-	--bg-alt:#0d141f; /* subtle deep tone */
-	--card:#121c27; /* primary card */
-	--card-alt:#1b2733; /* hover/secondary card */
+	--bg:#f9fbff; /* near-black */
+	--bg-alt:#f6f7fa; /* subtle deep tone */
+	--card:#dbe1e6; /* primary card */
+	--card-alt:#e6e9ed; /* hover/secondary card */
 	--muted:#9fb1c1; /* desaturated muted text */
 	--text:#f5f9fc; /* high contrast */
 	--accent1:#3d8bff; /* cool stellar blue */
@@ -22,6 +22,9 @@
 	--amber-bg:#201f1a; --amber-card:#2b2923; --amber-text:#ffe6be; --amber-accent:#ffbd63;
 	--teal-bg:#081e24; --teal-card:#0f2b33; --teal-text:#c9fdf8; --teal-accent:#37d6d2;
 	--indigo-bg:#141c2b; --indigo-card:#1e2a3c; --indigo-text:#dae4ff; --indigo-accent:#7aa2ff;
+
+	/* Bot message text color (default: black) */
+	--bot-text-color: #000000;
 }
 
 /* Accent presets applied via data-accent on html */
@@ -133,7 +136,7 @@ html[data-glass='1'] .glass-wrap .summary, html[data-glass='1'] .glass-wrap .sec
 	--card:#ffffff;
 	--card-alt:#f5f9fc;
 	--muted:#4b5d6d;
-	--text:#14212d;
+	--text:#f8f9fa;
 	--accent1:#006fc4;
 	--accent2:#11b2a1;
 	--accent3:#ff7a3c;
@@ -208,7 +211,7 @@ html[data-glass='1'] .glass-wrap .summary, html[data-glass='1'] .glass-wrap .sec
 /* Chat bubbles */
 .chat-msg{ max-width:80%; padding:10px 12px; border-radius:14px; border:1px solid var(--border); box-shadow: 0 4px 14px rgba(0,0,0,0.15) }
 .chat-msg.user{ align-self:flex-end; background: linear-gradient(90deg,var(--accent1),var(--accent2)); color:#111 }
-.chat-msg.bot{ align-self:flex-start; background: var(--card); color: var(--text) }
+.chat-msg.bot{ align-self:flex-start; background: var(--card); color: var(--bot-text-color) }
 /* Wordcloud wrapper overrides */
 #wordcloudWrap img{ background: rgba(0,0,0,0.05); }
 .chat-msg .time{ margin-top:6px; font-size:11px; opacity:0.75 }
@@ -398,6 +401,8 @@ footer{ margin-top:18px; color:var(--muted); font-size:13px; min-height:28px; pa
 	.result{ flex-direction:column }
 	.chartWrap{ width:100% }
 	.section-content{ max-height:unset }
+	
+/* Bot message color is controlled by --bot-text-color (defined in :root) */
 }
 
 /* Score bars */
